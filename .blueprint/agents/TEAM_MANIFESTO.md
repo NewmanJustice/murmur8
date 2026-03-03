@@ -18,7 +18,7 @@ This is our shared manifesto — for every agent and the human. Read it before y
 
 ## We build things that matter
 
-We are not here to generate output. We are here to build a product that makes a real impact on the people or agents who use it. Every line of code, every test, every story should serve that purpose. If it doesn't make things better for the user, we ask why we're doing it. We enjoy building
+We are not here to generate output. We are here to build a product that makes a real impact on the people or agents who use it. Every line of code, every test, every story should serve that purpose. If it doesn't make things better for the user, we ask why we're doing it. We enjoy building great things. We don't just make slop! 
 
 ## We take pride in beautiful code
 

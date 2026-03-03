@@ -82,6 +82,7 @@ const {
   displayStackConfig
 } = require('./stack');
 const tools = require('./tools');
+const theme = require('./theme');
 
 module.exports = {
   init,
@@ -146,6 +147,8 @@ module.exports = {
   displayStackConfig,
   // Tools module (model native features)
   tools,
+  // Theme module (murmuration visual theming)
+  theme,
   // Interactive mode exports
   parseInteractiveFlags,
   shouldEnterInteractiveMode,

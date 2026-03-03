@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
+const { colorize } = require('./theme');
 
 const HISTORY_FILE = '.claude/pipeline-history.json';
 
@@ -102,17 +103,6 @@ function formatDuration(ms) {
 function formatDate(isoString) {
   const date = new Date(isoString);
   return date.toISOString().replace('T', ' ').slice(0, 19);
-}
-
-function colorize(text, color, useColor) {
-  if (!useColor) return text;
-  const colors = {
-    green: '\x1b[32m',
-    red: '\x1b[31m',
-    yellow: '\x1b[33m',
-    reset: '\x1b[0m'
-  };
-  return `${colors[color] || ''}${text}${colors.reset}`;
 }
 
 function displayHistory(options = {}) {

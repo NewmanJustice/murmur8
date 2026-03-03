@@ -152,6 +152,8 @@ historyEntry = {
 
 ## Step 6: Spawn Alex Agent
 
+**Announce:** `} Alex — creating feature spec`
+
 **History:** Record `stages.alex.startedAt` before spawning.
 
 Use the Task tool with `subagent_type="general-purpose"`:
@@ -220,6 +222,8 @@ FEEDBACK: { "rating": N, "issues": [...], "recommendation": "..." }
 ---
 
 ## Step 7: Spawn Cass Agent
+
+**Announce:** ` } Cass — writing user stories`
 
 **History:** Record `stages.cass.startedAt` before spawning.
 
@@ -291,6 +295,8 @@ FEEDBACK: { "rating": N, "issues": [...], "recommendation": "..." }
 ---
 
 ## Step 8: Spawn Nigel Agent
+
+**Announce:** `  } Nigel — building tests`
 
 **History:** Record `stages.nigel.startedAt` before spawning.
 
@@ -366,6 +372,8 @@ FEEDBACK: { "rating": N, "issues": [...], "recommendation": "..." }
 
 ## Step 9: Spawn Codey Agent (Plan)
 
+**Announce:** `   } Codey — drafting implementation plan`
+
 **History:** Record `stages.codeyPlan.startedAt` before spawning.
 
 Use the Task tool with `subagent_type="general-purpose"`:
@@ -405,6 +413,8 @@ Plan structure (keep concise - aim for <80 lines total):
 ---
 
 ## Step 10: Spawn Codey Agent (Implement)
+
+**Announce:** `    } Codey — implementing feature`
 
 **History:** Record `stages.codeyImplement.startedAt` before spawning.
 
@@ -497,7 +507,13 @@ historyEntry.commitHash = "{hash}";
 
 **Display summary:**
 ```
-## Completed
+} Alex — creating feature spec       ✓
+ } Cass — writing user stories       ✓
+  } Nigel — building tests           ✓
+   } Codey — drafting plan           ✓
+    } Codey — implementing feature   ✓
+
+## Landed
 - feature_{slug}
   - Stories: N
   - Tests: N (all passing)

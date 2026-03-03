@@ -110,8 +110,8 @@ Write each pipeline's output to a log file:
 #### parallel-abort
 Command to stop all running pipelines and clean up:
 ```bash
-murmur8 parallel abort           # Stop all, preserve worktrees
-murmur8 parallel abort --cleanup # Stop all, remove worktrees
+murmur8 murm abort           # Stop all, preserve worktrees
+murmur8 murm abort --cleanup # Stop all, remove worktrees
 ```
 - Send SIGTERM to child processes
 - Update queue state to 'aborted'

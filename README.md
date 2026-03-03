@@ -1,8 +1,8 @@
 # murmur8
 
-A multi-agent workflow framework for automated feature development. Like a murmuration of starlings — individual agents moving together as one, each responding to its neighbours to create something greater than the sum of its parts.
+A multi-agent workflow framework for automated feature development In Claude Code and Copilot CLI. Four specialised AI agents collaborate in sequence to take features from specification to implementation, with built-in feedback loops and self-improvement capabilities.
 
-Four specialized AI agents collaborate in sequence to take features from specification to implementation, with built-in feedback loops and self-improvement capabilities.
+Like a murmuration of starlings, individual agents move together as one, each responding to its neighbours to create something greater than the sum of its parts.
 
 ## Upgrading to v4.0
 
@@ -362,6 +362,30 @@ $ npx murmur8 insights
 - Success rate: 75% → 85% (improving)
 - Avg duration: 14 min → 11 min (improving)
 ```
+
+## Multi-CLI Support (v4.1)
+
+The `/implement-feature` skill works with both **Claude Code** and **GitHub Copilot CLI**. During initialization, murmur8 installs the skill to both locations:
+
+| CLI | Location |
+|-----|----------|
+| Claude Code | `.claude/commands/implement-feature.md` |
+| Copilot CLI | `.github/skills/implement-feature/SKILL.md` |
+
+The Copilot CLI location is a symlink to the Claude Code master, ensuring both tools use identical skill definitions.
+
+### Usage
+
+```bash
+# Initialize (installs skill for both CLIs)
+npx murmur8 init
+
+# Then use either CLI:
+/implement-feature user-auth    # Works in Claude Code
+/implement-feature user-auth    # Works in Copilot CLI
+```
+
+Both CLIs execute the same pipeline: Alex → Cass → Nigel → Codey. The skill uses each CLI's native agent/task mechanism.
 
 ## Token Efficiency (v2.7)
 

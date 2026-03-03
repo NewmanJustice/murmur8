@@ -152,6 +152,17 @@ The pipeline is optimized to avoid Claude's 4096 output token limit:
 
 If token errors occur, set `CLAUDE_CODE_MAX_OUTPUT_TOKENS` environment variable higher.
 
+## Multi-CLI Support
+
+The `/implement-feature` skill works with both Claude Code and GitHub Copilot CLI. During `init`, murmur8 installs the skill to both locations:
+
+| CLI | Skill Location |
+|-----|----------------|
+| Claude Code | `.claude/commands/implement-feature.md` (master) |
+| Copilot CLI | `.github/skills/implement-feature/SKILL.md` (symlink) |
+
+Both CLIs use the same skill file (via symlink), ensuring identical behavior. Run `/implement-feature` in either tool.
+
 ## Skills
 
 Available skills (invoke via `/skill-name` in Claude Code):
