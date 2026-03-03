@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { colorize } = require('./theme');
 
 const CONFIG_FILE = '.claude/stack-config.json';
 
@@ -296,7 +297,9 @@ function detectStackConfig(projectDir) {
  */
 function displayStackConfig() {
   const config = readStackConfig();
-  console.log('\nStack Configuration\n');
+  const useColor = process.stdout.isTTY;
+
+  console.log('\n' + colorize('Stack Configuration', 'cyan', useColor) + '\n');
   console.log(`  language:       ${config.language || '(not set)'}`);
   console.log(`  runtime:        ${config.runtime || '(not set)'}`);
   console.log(`  packageManager: ${config.packageManager || '(not set)'}`);

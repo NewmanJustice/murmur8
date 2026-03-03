@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { colorize } = require('./theme');
 
 const REQUIRED_DIRS = ['.blueprint', '.business_context', '.claude/commands'];
 const AGENT_FILES = [
@@ -135,12 +136,8 @@ async function validate() {
 function formatOutput(result, useColor = false) {
   const lines = [];
 
-  const green = useColor ? '\x1b[32m' : '';
-  const red = useColor ? '\x1b[31m' : '';
-  const reset = useColor ? '\x1b[0m' : '';
-
-  const passIndicator = useColor ? `${green}\u2713${reset}` : '[PASS]';
-  const failIndicator = useColor ? `${red}\u2717${reset}` : '[FAIL]';
+  const passIndicator = useColor ? colorize('\u2713', 'green', useColor) : '[PASS]';
+  const failIndicator = useColor ? colorize('\u2717', 'red', useColor) : '[FAIL]';
 
   for (const check of result.checks) {
     const indicator = check.passed ? passIndicator : failIndicator;
@@ -152,14 +149,10 @@ function formatOutput(result, useColor = false) {
 
   lines.push('');
   if (result.success) {
-    lines.push(useColor
-      ? `${green}All checks passed. Project is ready.${reset}`
-      : 'All checks passed. Project is ready.');
+    lines.push(colorize('All checks passed. Project is ready.', 'green', useColor));
   } else {
     const failedCount = result.checks.filter(c => !c.passed).length;
-    lines.push(useColor
-      ? `${red}${failedCount} check(s) failed.${reset}`
-      : `${failedCount} check(s) failed.`);
+    lines.push(colorize(`${failedCount} check(s) failed.`, 'red', useColor));
   }
 
   return lines.join('\n');

@@ -1,4 +1,5 @@
 const { readHistoryFile, formatDuration } = require('./history');
+const { colorize } = require('./theme');
 
 const STAGES = ['alex', 'cass', 'nigel', 'codey-plan', 'codey-implement'];
 
@@ -229,8 +230,8 @@ function analyzeTrends(history) {
   };
 }
 
-function formatTextOutput(analysis, sections) {
-  const lines = ['\nPipeline Insights\n'];
+function formatTextOutput(analysis, sections, useColor = false) {
+  const lines = ['\n' + colorize('Pipeline Insights', 'cyan', useColor) + '\n'];
 
   const showAll = sections.length === 0;
   const showBottlenecks = showAll || sections.includes('bottlenecks');
@@ -239,24 +240,24 @@ function formatTextOutput(analysis, sections) {
   const showTrends = showAll || sections.includes('trends');
 
   if (showBottlenecks) {
-    lines.push('BOTTLENECK ANALYSIS');
+    lines.push(colorize('BOTTLENECK ANALYSIS', 'cyan', useColor));
     if (analysis.bottlenecks.insufficientData) {
       lines.push(`  ${analysis.bottlenecks.message}`);
     } else {
       lines.push(`  Slowest stage: ${analysis.bottlenecks.bottleneckStage} (${analysis.bottlenecks.percentage}% of pipeline)`);
       lines.push(`  Average duration: ${formatDuration(analysis.bottlenecks.avgDurationMs)}`);
       if (analysis.bottlenecks.isBottleneck) {
-        lines.push('  Status: BOTTLENECK DETECTED');
+        lines.push('  Status: ' + colorize('BOTTLENECK DETECTED', 'yellow', useColor));
       }
       if (analysis.bottlenecks.recommendation) {
-        lines.push(`  Recommendation: ${analysis.bottlenecks.recommendation}`);
+        lines.push(`  Recommendation: ${colorize(analysis.bottlenecks.recommendation, 'yellow', useColor)}`);
       }
     }
     lines.push('');
   }
 
   if (showFailures) {
-    lines.push('FAILURE PATTERNS');
+    lines.push(colorize('FAILURE PATTERNS', 'cyan', useColor));
     if (analysis.failures.noFailures) {
       lines.push(`  ${analysis.failures.message}`);
     } else {
@@ -269,14 +270,14 @@ function formatTextOutput(analysis, sections) {
         }
       }
       if (analysis.failures.recommendation) {
-        lines.push(`  Recommendation: ${analysis.failures.recommendation}`);
+        lines.push(`  Recommendation: ${colorize(analysis.failures.recommendation, 'yellow', useColor)}`);
       }
     }
     lines.push('');
   }
 
   if (showAnomalies) {
-    lines.push('ANOMALY DETECTION');
+    lines.push(colorize('ANOMALY DETECTION', 'cyan', useColor));
     if (analysis.anomalies.insufficientData) {
       lines.push(`  ${analysis.anomalies.message}`);
     } else if (analysis.anomalies.noAnomalies) {
@@ -287,14 +288,14 @@ function formatTextOutput(analysis, sections) {
         lines.push(`    - ${a.slug}/${a.stage}: ${formatDuration(a.actual)} (expected ~${formatDuration(a.expected)}, ${a.deviation}x stddev)`);
       }
       if (analysis.anomalies.recommendation) {
-        lines.push(`  Recommendation: ${analysis.anomalies.recommendation}`);
+        lines.push(`  Recommendation: ${colorize(analysis.anomalies.recommendation, 'yellow', useColor)}`);
       }
     }
     lines.push('');
   }
 
   if (showTrends) {
-    lines.push('TREND ANALYSIS');
+    lines.push(colorize('TREND ANALYSIS', 'cyan', useColor));
     if (analysis.trends.insufficientData) {
       lines.push(`  ${analysis.trends.message}`);
     } else {
@@ -303,7 +304,7 @@ function formatTextOutput(analysis, sections) {
       lines.push(`  Success rate: ${sr.trend} (${sr.change > 0 ? '+' : ''}${sr.change}%)`);
       lines.push(`  Duration: ${dr.trend} (${dr.change > 0 ? '+' : ''}${dr.change}%)`);
       if (analysis.trends.recommendation) {
-        lines.push(`  Recommendation: ${analysis.trends.recommendation}`);
+        lines.push(`  Recommendation: ${colorize(analysis.trends.recommendation, 'yellow', useColor)}`);
       }
     }
     lines.push('');
@@ -334,6 +335,7 @@ function formatJsonOutput(analysis, sections) {
 
 function displayInsights(options = {}) {
   const history = readHistoryFile();
+  const useColor = options.color !== false && process.stdout.isTTY;
 
   if (history.error === 'corrupted') {
     console.log("Warning: History file is corrupted. Run 'murmur8 history clear' to reset.");
@@ -359,7 +361,7 @@ function displayInsights(options = {}) {
   if (options.json) {
     console.log(formatJsonOutput(analysis, sections));
   } else {
-    console.log(formatTextOutput(analysis, sections));
+    console.log(formatTextOutput(analysis, sections, useColor));
   }
 }
 
@@ -437,6 +439,7 @@ function recommendThreshold(history) {
  */
 function displayFeedbackInsights(options = {}) {
   const history = readHistoryFile();
+  const useColor = options.color !== false && process.stdout.isTTY;
 
   if (history.error === 'corrupted') {
     console.log("Warning: History file is corrupted.");
@@ -448,10 +451,10 @@ function displayFeedbackInsights(options = {}) {
     return;
   }
 
-  console.log('\nFeedback Insights\n');
+  console.log('\n' + colorize('Feedback Insights', 'cyan', useColor) + '\n');
 
   // Agent calibration
-  console.log('AGENT CALIBRATION');
+  console.log(colorize('AGENT CALIBRATION', 'cyan', useColor));
   for (const agent of ['alex', 'cass', 'nigel']) {
     const calibration = calculateCalibration(agent, history);
     if (calibration === null) {
@@ -466,7 +469,7 @@ function displayFeedbackInsights(options = {}) {
   // Issue correlations
   const correlations = correlateIssues(history);
   if (Object.keys(correlations).length > 0) {
-    console.log('ISSUE CORRELATIONS');
+    console.log(colorize('ISSUE CORRELATIONS', 'cyan', useColor));
     const sorted = Object.entries(correlations)
       .sort(([, a], [, b]) => b - a);
     for (const [issue, corr] of sorted) {
@@ -482,7 +485,7 @@ function displayFeedbackInsights(options = {}) {
   );
   if (entriesWithFeedback.length >= 10) {
     const recommended = recommendThreshold(history);
-    console.log('RECOMMENDATIONS');
+    console.log(colorize('RECOMMENDATIONS', 'cyan', useColor));
     console.log(`  Suggested minRatingThreshold: ${recommended}`);
     console.log('');
   }

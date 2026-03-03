@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { readHistoryFile } = require('./history');
+const { colorize } = require('./theme');
 
 const CONFIG_FILE = '.claude/retry-config.json';
 
@@ -179,11 +180,13 @@ function shouldRetry(stage, featureSlug, history, config, attemptCount) {
  */
 function displayConfig() {
   const config = readConfig();
-  console.log('\nRetry Configuration\n');
+  const useColor = process.stdout.isTTY;
+
+  console.log('\n' + colorize('Retry Configuration', 'cyan', useColor) + '\n');
   console.log(`  Max retries:            ${config.maxRetries}`);
   console.log(`  Window size:            ${config.windowSize}`);
   console.log(`  High failure threshold: ${config.highFailureThreshold}`);
-  console.log('\n  Stage Strategies:');
+  console.log('\n  ' + colorize('Stage Strategies:', 'cyan', useColor));
   for (const [stage, strategies] of Object.entries(config.strategies)) {
     console.log(`    ${stage.padEnd(16)}: ${strategies.join(' -> ')}`);
   }

@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { colorize } = require('./theme');
 
 const CONFIG_FILE = '.claude/feedback-config.json';
 
@@ -169,10 +170,12 @@ function setConfigValue(key, value) {
  */
 function displayConfig() {
   const config = readConfig();
-  console.log('\nFeedback Configuration\n');
+  const useColor = process.stdout.isTTY;
+
+  console.log('\n' + colorize('Feedback Configuration', 'cyan', useColor) + '\n');
   console.log(`  Min rating threshold:   ${config.minRatingThreshold}`);
   console.log(`  Enabled:                ${config.enabled}`);
-  console.log('\n  Issue Mappings:');
+  console.log('\n  ' + colorize('Issue Mappings:', 'cyan', useColor));
   for (const [issue, strategy] of Object.entries(config.issueMappings)) {
     console.log(`    ${issue.padEnd(24)}: ${strategy}`);
   }
