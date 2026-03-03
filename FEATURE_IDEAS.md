@@ -73,6 +73,11 @@ Suggested features to implement using the `/implement-feature` pipeline.
 | 💡 | webhook-notifications | L | Slack/email on completion |
 | 💡 | mcp-integration | XL | Expose murmur8 as MCP tools |
 | 💡 | mcp-repos-server | XL | Cross-repo context for distributed monoliths |
+| 💡 | cli-doctor | S | Diagnose CLI setup (symlinks, permissions, skill validity) |
+| 💡 | cross-cli-insights | M | Track which CLI used per run, compare performance |
+| 💡 | skill-lint | S | Validate skill YAML frontmatter and required sections |
+| 💡 | aider-adapter | M | Symlink/config for Aider CLI compatibility |
+| 💡 | cursor-adapter | M | Skill format for Cursor Composer |
 
 ---
 
@@ -322,6 +327,72 @@ No MCP needed — contracts always available locally.
 - Minimal GitHub token permissions (repo:read)
 - Rate limiting with aggressive caching
 - Secret filtering (never expose .env from other repos)
+
+### cli-doctor
+Diagnose and fix CLI setup issues:
+- Check symlinks exist and point to valid files
+- Verify YAML frontmatter is valid
+- Check file permissions
+- Test that skill is discoverable by each CLI
+- `murmur8 doctor` outputs checklist with ✓/✗
+- `murmur8 doctor --fix` attempts auto-repair
+
+### cross-cli-insights
+Track CLI tool used in pipeline history:
+- Record `cli: "claude-code"` or `cli: "copilot-cli"` per run
+- `murmur8 insights --by-cli` shows performance comparison
+- Useful for teams using both tools to identify which works better for their codebase
+- Could reveal patterns like "Copilot CLI faster for tests, Claude Code better for implementation"
+
+### skill-lint
+Validate skill files before CLI tries to use them:
+- Check YAML frontmatter has required fields (`name`, `description`)
+- Validate name is lowercase-with-hyphens
+- Check markdown structure has expected sections
+- `murmur8 lint` or integrated into `murmur8 validate`
+- Prevents cryptic CLI errors from malformed skills
+
+### aider-adapter
+Support for Aider CLI (another popular AI coding tool):
+- Research Aider's command format
+- Generate appropriate config/prompt file
+- Symlink or copy to Aider's expected location
+- Same `/implement-feature` experience across three CLIs
+
+### cursor-adapter
+Support for Cursor's Composer feature:
+- Research how Cursor handles custom commands/prompts
+- May need different approach (Cursor uses `.cursorrules`)
+- Could generate project rules that reference the pipeline
+- Goal: consistent experience across all major AI coding tools
+
+---
+
+## Technical Debt / Refactoring
+
+| Priority | Item | Effort | Description |
+|----------|------|--------|-------------|
+| P2 | split-cli-commands | M | `bin/cli.js` is 400+ lines — extract command handlers to `src/commands/*.js` |
+| P2 | config-factory | M | DRY up retry/feedback/murm/stack-config — shared pattern with validation |
+| P3 | theme-adoption | S | Use `src/theme.js` consistently across all output (not just murm) |
+| P3 | fix-status-icons | S | `STATUS_ICONS` in theme.js still uses `parallel_*` — rename to `murm_*` |
+| P3 | extract-prompt-util | S | `prompt()` function in init.js duplicated — extract to `src/utils.js` |
+| P3 | skill-modularize | L | SKILL.md is 850+ lines — consider splitting into composable sections |
+
+### Notes
+
+**split-cli-commands**: Current structure puts all logic in cli.js. Pattern would be:
+```
+bin/cli.js           → Router only
+src/commands/init.js → Handler + help text
+src/commands/murm.js → Handler + help text
+```
+
+**config-factory**: All config modules follow same pattern:
+- `getDefaultConfig()`, `readConfig()`, `writeConfig()`, `displayConfig()`, `setConfigValue()`
+- Could be: `createConfigModule({ name, defaults, validators })`
+
+**theme-adoption**: The pipeline skill output could use `formatStageStart()` and `colorize()` for consistent branding across CLI and skill execution.
 
 ---
 

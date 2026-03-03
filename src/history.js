@@ -100,6 +100,96 @@ function formatDuration(ms) {
   return `${minutes}m ${secs}s`;
 }
 
+function isValidDateFormat(dateStr) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+  const date = new Date(dateStr);
+  return !isNaN(date.getTime());
+}
+
+function escapeCSVField(value) {
+  if (value === null || value === undefined) return '';
+  const str = String(value);
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+function formatCSV(entries) {
+  const headers = ['slug', 'status', 'startedAt', 'completedAt', 'totalDurationMs', 'failedStage', 'pausedAfter'];
+  const lines = [headers.join(',')];
+  for (const entry of entries) {
+    const row = headers.map(h => escapeCSVField(entry[h]));
+    lines.push(row.join(','));
+  }
+  return lines.join('\n');
+}
+
+function formatJSON(entries) {
+  return JSON.stringify(entries, null, 2);
+}
+
+async function exportHistory(options = {}) {
+  const { format = 'csv', since, until, status, feature, output } = options;
+
+  const history = readHistoryFile();
+
+  if (history.error === 'corrupted') {
+    return { exitCode: 1, error: "History file is corrupted. Run 'murmur8 history clear' to reset." };
+  }
+
+  if (since && !isValidDateFormat(since)) {
+    return { exitCode: 1, error: 'Invalid --since format. Use YYYY-MM-DD.' };
+  }
+
+  if (until && !isValidDateFormat(until)) {
+    return { exitCode: 1, error: 'Invalid --until format. Use YYYY-MM-DD.' };
+  }
+
+  const validStatuses = ['success', 'failed', 'paused'];
+  if (status && !validStatuses.includes(status)) {
+    return { exitCode: 1, error: `Invalid --status value. Use: success, failed, paused.` };
+  }
+
+  let filtered = history;
+
+  if (since) {
+    const sinceDate = new Date(since);
+    filtered = filtered.filter(e => e.completedAt && new Date(e.completedAt) >= sinceDate);
+  }
+
+  if (until) {
+    const untilDate = new Date(until);
+    untilDate.setDate(untilDate.getDate() + 1);
+    filtered = filtered.filter(e => e.completedAt && new Date(e.completedAt) < untilDate);
+  }
+
+  if (status) {
+    filtered = filtered.filter(e => e.status === status);
+  }
+
+  if (feature) {
+    filtered = filtered.filter(e => e.slug === feature);
+  }
+
+  const formatted = format === 'json' ? formatJSON(filtered) : formatCSV(filtered);
+
+  if (output) {
+    try {
+      const dir = path.dirname(output);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(output, formatted);
+      return { message: `Exported ${filtered.length} entries to ${output}` };
+    } catch (err) {
+      return { exitCode: 1, error: err.message };
+    }
+  }
+
+  return { output: formatted };
+}
+
 function formatDate(isoString) {
   const date = new Date(isoString);
   return date.toISOString().replace('T', ' ').slice(0, 19);
@@ -292,5 +382,6 @@ module.exports = {
   displayHistory,
   showStats,
   clearHistory,
-  formatDuration
+  formatDuration,
+  exportHistory
 };

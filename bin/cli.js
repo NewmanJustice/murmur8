@@ -4,7 +4,7 @@ const { init } = require('../src/init');
 const { update } = require('../src/update');
 const { displayQueue, resetQueue } = require('../src/orchestrator');
 const { validate, formatOutput } = require('../src/validate');
-const { displayHistory, showStats, clearHistory } = require('../src/history');
+const { displayHistory, showStats, clearHistory, exportHistory } = require('../src/history');
 const { displayInsights } = require('../src/insights');
 const { displayConfig, setConfigValue, resetConfig } = require('../src/retry');
 const {
@@ -87,6 +87,26 @@ const commands = {
       const flags = parseFlags(args);
       if (subArg === 'clear') {
         await clearHistory({ force: flags.force });
+      } else if (subArg === 'export') {
+        const exportOpts = {};
+        for (const arg of args) {
+          if (arg.startsWith('--format=')) exportOpts.format = arg.split('=')[1];
+          if (arg.startsWith('--since=')) exportOpts.since = arg.split('=')[1];
+          if (arg.startsWith('--until=')) exportOpts.until = arg.split('=')[1];
+          if (arg.startsWith('--status=')) exportOpts.status = arg.split('=')[1];
+          if (arg.startsWith('--feature=')) exportOpts.feature = arg.split('=')[1];
+          if (arg.startsWith('--output=')) exportOpts.output = arg.split('=')[1];
+        }
+        const result = await exportHistory(exportOpts);
+        if (result.exitCode) {
+          console.error(`Error: ${result.error}`);
+          process.exit(result.exitCode);
+        }
+        if (result.message) {
+          console.log(result.message);
+        } else if (result.output) {
+          console.log(result.output);
+        }
       } else if (flags.stats) {
         showStats();
       } else {
@@ -339,6 +359,13 @@ Commands:
   history --stats       View aggregate statistics
   history clear         Clear all pipeline history (with confirmation)
   history clear --force Clear all pipeline history (no confirmation)
+  history export        Export history as CSV (default) or JSON
+  history export --format=json  Export as JSON
+  history export --since=YYYY-MM-DD  Filter entries on or after date
+  history export --until=YYYY-MM-DD  Filter entries on or before date
+  history export --status=<status>   Filter by status (success|failed|paused)
+  history export --feature=<slug>    Filter by feature slug
+  history export --output=<path>     Write to file instead of stdout
   insights              Analyze pipeline for bottlenecks, failures, and trends
   insights --bottlenecks Show only bottleneck analysis
   insights --failures   Show only failure patterns
