@@ -103,7 +103,9 @@ This updates `.blueprint/agents/`, `.blueprint/templates/`, `.blueprint/ways_of_
 | Command | Description |
 |---------|-------------|
 | `npx murmur8 history` | View recent pipeline runs |
+| `npx murmur8 history --cost` | View runs with cost breakdown |
 | `npx murmur8 history --stats` | View aggregate statistics |
+| `npx murmur8 history --stats --cost` | View stats with cost metrics |
 | `npx murmur8 history --all` | View all runs |
 | `npx murmur8 history clear` | Clear history |
 | `npx murmur8 history export` | Export history as CSV (default) |
@@ -136,6 +138,9 @@ This updates `.blueprint/agents/`, `.blueprint/templates/`, `.blueprint/ways_of_
 | `npx murmur8 stack-config` | View detected tech stack |
 | `npx murmur8 stack-config set <key> <value>` | Modify stack settings (language, frameworks, testRunner, etc.) |
 | `npx murmur8 stack-config reset` | Reset to empty defaults |
+| `npx murmur8 cost-config` | View cost tracking pricing |
+| `npx murmur8 cost-config set <key> <value>` | Modify pricing (inputPrice, outputPrice) |
+| `npx murmur8 cost-config reset` | Reset to default Claude pricing |
 | `npx murmur8 retry-config` | View retry configuration |
 | `npx murmur8 retry-config set <key> <value>` | Modify retry settings |
 | `npx murmur8 retry-config reset` | Reset to defaults |
@@ -155,6 +160,7 @@ Run the pipeline with the `/implement-feature` skill in Claude Code:
 /implement-feature "Your Slug" --no-validate # Skip pre-flight validation
 /implement-feature "Your Slug" --no-history  # Skip history recording
 /implement-feature "Your Slug" --no-commit   # Skip auto-commit
+/implement-feature "Your Slug" --no-diff-preview  # Skip diff preview before commit
 /implement-feature "Your Slug" --pause-after=alex|cass|nigel|codey-plan
 /implement-feature "Your Slug" --with-stories  # Force include Cass stage
 /implement-feature "Your Slug" --skip-stories  # Force skip Cass stage
@@ -243,8 +249,15 @@ The pipeline includes validation, smart routing, feedback loops, and history tra
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
+│  Diff Preview (unless --no-diff-preview)                        │
+│  • Show file changes (added/modified/deleted)                   │
+│  • User confirms: commit / abort / view full diff               │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
 │  Auto-commit → Record to History                                │
-│  • Duration, feedback scores, outcome                           │
+│  • Duration, feedback scores, token cost, outcome               │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -255,7 +268,7 @@ murmur8 includes these built-in modules for observability and self-improvement:
 | Module | Purpose |
 |--------|---------|
 | **validate** | Pre-flight checks before pipeline runs |
-| **history** | Records execution data (timing, status, feedback) |
+| **history** | Records execution data (timing, status, feedback, cost) |
 | **insights** | Analyzes patterns, detects bottlenecks, recommends improvements |
 | **retry** | Smart retry strategies based on failure history |
 | **feedback** | Agent-to-agent quality assessment with correlation tracking |
@@ -265,6 +278,8 @@ murmur8 includes these built-in modules for observability and self-improvement:
 | **tools** | Tool schemas and validation for Claude native features |
 | **murm** | Murmuration pipeline execution using git worktrees |
 | **stack** | Configurable tech stack detection and configuration |
+| **cost** | Token usage tracking and cost estimation per stage |
+| **diff-preview** | Pre-commit change review with user confirmation |
 
 ### How They Work Together
 
@@ -273,7 +288,11 @@ Pipeline Run
      │
      ├──► history.js records timing at each stage
      │
+     ├──► cost.js tracks token usage per stage
+     │
      ├──► feedback.js collects quality ratings between stages
+     │
+     ├──► diff-preview.js shows changes before commit
      │
      └──► On completion/failure, data stored in pipeline-history.json
                               │
@@ -326,6 +345,7 @@ your-project/
 │   ├── pipeline-history.json      # Execution history (gitignored)
 │   ├── retry-config.json          # Retry configuration (gitignored)
 │   ├── feedback-config.json       # Feedback thresholds (gitignored)
+│   ├── cost-config.json           # Cost tracking pricing (gitignored)
 │   ├── murm-config.json            # Murmuration execution config (gitignored)
 │   ├── murm-queue.json             # Murmuration pipeline state (gitignored)
 │   ├── stack-config.json          # Tech stack configuration (gitignored)
@@ -418,6 +438,44 @@ Version 2.7 introduces several optimizations to reduce token usage:
 | **Smart Story Routing** | ~25,000-40,000 tokens | Skip Cass for technical features |
 
 **Total estimated savings: 10,000+ tokens per pipeline run** (more for technical features)
+
+## Cost Tracking
+
+Track token usage and estimated costs per pipeline stage:
+
+```bash
+# View costs in history
+npx murmur8 history --cost
+
+SLUG                STATUS    DURATION   TOTAL COST
+user-auth           success   12m 30s    $0.088
+api-validation      success    8m 15s    $0.062
+
+# View cost statistics
+npx murmur8 history --stats --cost
+
+Avg cost per run:        $0.075
+Total cost (all runs):   $1.12
+Most expensive stage:    codey-implement
+```
+
+### Configuration
+
+Default pricing uses Claude Sonnet rates ($3/M input, $15/M output):
+
+```bash
+# View current pricing
+npx murmur8 cost-config
+
+# Customize pricing (per million tokens)
+npx murmur8 cost-config set inputPrice 3
+npx murmur8 cost-config set outputPrice 15
+
+# Reset to defaults
+npx murmur8 cost-config reset
+```
+
+Cost data is stored in `pipeline-history.json` alongside timing and feedback data.
 
 ## Murmuration
 
