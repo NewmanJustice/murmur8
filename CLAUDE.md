@@ -43,6 +43,9 @@ node bin/cli.js murm-config          # View murmuration settings (alias: paralle
 node bin/cli.js stack-config        # View tech stack settings
 node bin/cli.js stack-config set language Python  # Set a value
 node bin/cli.js stack-config reset  # Reset to defaults
+node bin/cli.js cost-config         # View cost tracking pricing
+node bin/cli.js cost-config set inputPrice 3  # Set input price per million tokens
+node bin/cli.js cost-config reset   # Reset to default Claude pricing
 
 # Murmuration (parallel execution) — also available as: parallel, murmuration
 node bin/cli.js murm feat-a feat-b     # Run multiple features in parallel
@@ -93,6 +96,8 @@ murmur8 is a multi-agent workflow framework that coordinates four AI agents to a
 - `src/murm.js` - Murmuration pipeline execution using git worktrees
 - `src/interactive.js` - Interactive mode for spec creation (system spec or feature spec)
 - `src/stack.js` - Configurable tech stack detection and configuration (auto-detects from package.json, pyproject.toml, go.mod, etc.)
+- `src/cost.js` - Token usage tracking and cost estimation per stage
+- `src/diff-preview.js` - Pre-commit change review with user confirmation
 - `src/tools/` - Tool schemas, validation, and prompts for Claude native features
 - `src/utils.js` - Shared utility functions (prompt for user input, etc.)
 
@@ -120,6 +125,7 @@ Invocation options:
 - `/implement-feature "slug" --interactive` - Force interactive spec creation mode
 - `/implement-feature "slug" --pause-after=alex|cass|nigel|codey-plan` - Pause at stage for review
 - `/implement-feature "slug" --no-commit` - Skip auto-commit at end
+- `/implement-feature "slug" --no-diff-preview` - Skip diff preview before commit
 - `/implement-feature "slug" --no-feedback` - Skip feedback collection
 - `/implement-feature "slug" --no-validate` - Skip pre-flight validation
 - `/implement-feature "slug" --no-history` - Skip history recording
@@ -145,7 +151,7 @@ Each feature gets an isolated worktree in `.claude/worktrees/feat-{slug}/`. Succ
 
 - User content directories (`features/`, `system_specification/`) are preserved during `update`
 - Framework directories (`agents/`, `templates/`, `ways_of_working/`) are replaced during `update`
-- State files are gitignored: `implement-queue.json`, `pipeline-history.json`, `retry-config.json`, `feedback-config.json`, `murm-config.json`, `murm-queue.json`, `stack-config.json`
+- State files are gitignored: `implement-queue.json`, `pipeline-history.json`, `retry-config.json`, `feedback-config.json`, `murm-config.json`, `murm-queue.json`, `stack-config.json`, `cost-config.json`
 - Test files follow `test/feature_{slug}.test.js` naming convention
 
 ## Token Limit Handling
