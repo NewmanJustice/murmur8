@@ -195,8 +195,14 @@ function formatDate(isoString) {
   return date.toISOString().replace('T', ' ').slice(0, 19);
 }
 
+function formatCostValue(cost) {
+  if (cost === null || cost === undefined) return 'N/A';
+  return `$${cost.toFixed(3)}`;
+}
+
 function displayHistory(options = {}) {
   const showAll = options.all || false;
+  const showCost = options.cost || false;
   const useColor = options.color !== false && process.stdout.isTTY;
 
   const history = readHistoryFile();
@@ -220,7 +226,11 @@ function displayHistory(options = {}) {
   const showing = entries.length;
 
   console.log(`\nPipeline History (showing ${showing} of ${total} runs)\n`);
-  console.log('  SLUG                STATUS    DATE                  DURATION');
+  if (showCost) {
+    console.log('  SLUG                STATUS    DURATION   TOTAL COST');
+  } else {
+    console.log('  SLUG                STATUS    DATE                  DURATION');
+  }
 
   for (const entry of entries) {
     const slug = entry.slug.padEnd(18);
@@ -243,7 +253,12 @@ function displayHistory(options = {}) {
       suffix = ` (paused at: ${entry.pausedAfter})`;
     }
 
-    console.log(`  ${slug}  ${status}  ${date}   ${duration}${suffix}`);
+    if (showCost) {
+      const costDisplay = formatCostValue(entry.totalCost).padEnd(10);
+      console.log(`  ${slug}  ${status}  ${duration.padEnd(9)}  ${costDisplay}${suffix}`);
+    } else {
+      console.log(`  ${slug}  ${status}  ${date}   ${duration}${suffix}`);
+    }
   }
 
   if (!showAll && total > 10) {
@@ -252,7 +267,8 @@ function displayHistory(options = {}) {
   console.log(`Run 'murmur8 history --stats' for aggregate statistics.`);
 }
 
-function showStats() {
+function showStats(options = {}) {
+  const showCost = options.cost || false;
   const history = readHistoryFile();
 
   if (history.error === 'corrupted') {
@@ -283,6 +299,38 @@ function showStats() {
       successRuns.reduce((sum, e) => sum + e.totalDurationMs, 0) / successRuns.length
     );
     console.log(`  Avg pipeline duration     ${formatDuration(avgTotal)}`);
+  }
+
+  if (showCost) {
+    const runsWithCost = history.filter(e => e.totalCost !== undefined);
+    if (runsWithCost.length > 0) {
+      const totalCostAll = runsWithCost.reduce((sum, e) => sum + e.totalCost, 0);
+      const avgCost = totalCostAll / runsWithCost.length;
+      console.log(`  Avg cost per run          ${formatCostValue(avgCost)}`);
+      console.log(`  Total cost (all runs)     ${formatCostValue(totalCostAll)}`);
+
+      const stages = ['alex', 'cass', 'nigel', 'codey-plan', 'codey-implement'];
+      const stageCosts = {};
+      for (const stage of stages) {
+        stageCosts[stage] = 0;
+      }
+      for (const entry of runsWithCost) {
+        if (entry.stages) {
+          for (const stage of stages) {
+            if (entry.stages[stage] && entry.stages[stage].cost !== undefined) {
+              stageCosts[stage] += entry.stages[stage].cost;
+            }
+          }
+        }
+      }
+      const maxCost = Math.max(...Object.values(stageCosts));
+      const mostExpensive = Object.entries(stageCosts)
+        .filter(([, cost]) => cost === maxCost)
+        .map(([stage]) => stage);
+      if (mostExpensive.length > 0 && maxCost > 0) {
+        console.log(`  Most expensive stage      ${mostExpensive[0]} (${formatCostValue(maxCost)} total)`);
+      }
+    }
   }
 
   const stages = ['alex', 'cass', 'nigel', 'codey-plan', 'codey-implement'];

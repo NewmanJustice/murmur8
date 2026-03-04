@@ -13,6 +13,9 @@ node_modules/
 .claude/murm-queue.json
 .claude/murm.lock
 
+# Cost tracking config
+.claude/cost-config.json
+
 # Legacy parallel state files (pre-migration)
 .claude/parallel-config.json
 .claude/parallel-queue.json

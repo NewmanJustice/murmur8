@@ -50,7 +50,8 @@ const STATUS_ICONS = {
   'murm_complete': '\u2713',      // ✓
   'murm_failed': '\u2717',        // ✗
   'merge_conflict': '\u26a0',     // ⚠
-  'aborted': '\u25a0'             // ■
+  'aborted': '\u25a0',            // ■
+  'user-aborted': '\u25a1'        // □
 };
 
 // --- Spinner ---

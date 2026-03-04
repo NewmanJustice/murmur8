@@ -33,9 +33,9 @@ async function run(args) {
       console.log(result.output);
     }
   } else if (flags.stats) {
-    showStats();
+    showStats({ cost: flags.cost });
   } else {
-    displayHistory({ all: flags.all });
+    displayHistory({ all: flags.all, cost: flags.cost });
   }
 }
 

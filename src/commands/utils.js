@@ -17,6 +17,7 @@ function parseFlags(args) {
     if (arg === '--failures') flags.failures = true;
     if (arg === '--json') flags.json = true;
     if (arg === '--feedback') flags.feedback = true;
+    if (arg === '--cost') flags.cost = true;
   }
   return flags;
 }

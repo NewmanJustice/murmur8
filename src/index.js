@@ -81,6 +81,19 @@ const {
   detectStackConfig,
   displayStackConfig
 } = require('./stack');
+const {
+  parseGitStatus,
+  formatDiffSummary,
+  formatFeatureHeader,
+  hasChanges,
+  shouldSkipPreview,
+  parseUserChoice,
+  createAbortResult,
+  truncateDiff,
+  getPreviewState,
+  markWorktreeAborted,
+  getPromptText
+} = require('./diff-preview');
 const tools = require('./tools');
 const theme = require('./theme');
 
@@ -149,6 +162,18 @@ module.exports = {
   tools,
   // Theme module (murmuration visual theming)
   theme,
+  // Diff preview exports
+  parseGitStatus,
+  formatDiffSummary,
+  formatFeatureHeader,
+  hasChanges,
+  shouldSkipPreview,
+  parseUserChoice,
+  createAbortResult,
+  truncateDiff,
+  getPreviewState,
+  markWorktreeAborted,
+  getPromptText,
   // Interactive mode exports
   parseInteractiveFlags,
   shouldEnterInteractiveMode,

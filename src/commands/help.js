@@ -19,6 +19,8 @@ Commands:
   history               View recent pipeline runs (last 10 by default)
   history --all         View all pipeline runs
   history --stats       View aggregate statistics
+  history --cost        View history with total cost column
+  history --stats --cost  View statistics with cost metrics
   history clear         Clear all pipeline history (with confirmation)
   history clear --force Clear all pipeline history (no confirmation)
   history export        Export history as CSV (default) or JSON
@@ -42,6 +44,9 @@ Commands:
   stack-config          View current tech stack configuration
   stack-config set <key> <value>  Modify a config value (language, runtime, frameworks, etc.)
   stack-config reset    Reset tech stack configuration to defaults
+  cost-config           View current pricing configuration for cost tracking
+  cost-config set <key> <value>  Modify a config value (inputPricePerMillion, outputPricePerMillion)
+  cost-config reset     Reset pricing configuration to defaults
   murm <slugs...>       Run multiple feature pipelines in parallel (murmuration)
   murm <slugs...> --dry-run  Show execution plan without running
   murm <slugs...> --yes      Skip confirmation prompt
