@@ -10,7 +10,8 @@ const command = args[0];
 const aliases = {
   'parallel': 'murm',
   'murmuration': 'murm',
-  'parallel-config': 'murm-config'
+  'parallel-config': 'murm-config',
+  'refine-feature': 'refine'
 };
 
 const resolvedCommand = aliases[command] || command;

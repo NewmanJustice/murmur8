@@ -1,4 +1,16 @@
 const { init } = require('./init');
+const {
+  parseRefinementArgs,
+  loadRefinementContext,
+  applySpecDiff,
+  buildRefinementPayload,
+  linkParentRun,
+  isTechnicalFeature,
+  filterAffectedStories,
+  buildStoryChanges,
+  buildChangeSummary,
+  isPauseBypassable,
+} = require('./refine');
 const { update } = require('./update');
 const { validate, formatOutput, checkNodeVersion } = require('./validate');
 const { recordHistory, displayHistory, showStats, clearHistory, storeStageFeedback, updateStage } = require('./history');
@@ -209,5 +221,16 @@ module.exports = {
   SESSION_STATES,
   SECTION_ORDER,
   MIN_REQUIRED_SECTIONS,
-  SYSTEM_SPEC_QUESTIONS
+  SYSTEM_SPEC_QUESTIONS,
+  // Refine module exports
+  parseRefinementArgs,
+  loadRefinementContext,
+  applySpecDiff,
+  buildRefinementPayload,
+  linkParentRun,
+  isTechnicalFeature,
+  filterAffectedStories,
+  buildStoryChanges,
+  buildChangeSummary,
+  isPauseBypassable,
 };
