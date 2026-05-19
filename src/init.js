@@ -94,8 +94,10 @@ async function init() {
   const businessContextSrc = path.join(PACKAGE_ROOT, '.business_context');
   const businessContextDest = path.join(TARGET_DIR, '.business_context');
   const skillSrc = path.join(PACKAGE_ROOT, 'SKILL.md');
+  const refineSkillSrc = path.join(PACKAGE_ROOT, 'REFINE_SKILL.md');
   const claudeCommandsDir = path.join(TARGET_DIR, '.claude', 'commands');
   const skillCommandDest = path.join(claudeCommandsDir, 'implement-feature.md');
+  const refineSkillCommandDest = path.join(claudeCommandsDir, 'refine-feature.md');
 
   // Check if .blueprint already exists
   if (fs.existsSync(blueprintDest)) {
@@ -128,6 +130,12 @@ async function init() {
     fs.copyFileSync(skillSrc, skillCommandDest);
     console.log('Copied skill to .claude/commands/implement-feature.md');
     createCopilotSymlink();
+  }
+
+  // Copy refine-feature skill to .claude/commands/
+  if (fs.existsSync(refineSkillSrc)) {
+    fs.copyFileSync(refineSkillSrc, refineSkillCommandDest);
+    console.log('Copied skill to .claude/commands/refine-feature.md');
   }
 
   // Copy framework directories only (not user content directories)

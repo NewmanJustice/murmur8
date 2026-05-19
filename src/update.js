@@ -42,6 +42,8 @@ async function update() {
   const blueprintSrc = path.join(PACKAGE_ROOT, '.blueprint');
   const skillSrc = path.join(PACKAGE_ROOT, 'SKILL.md');
   const skillDest = path.join(TARGET_DIR, 'SKILL.md');
+  const refineSkillSrc = path.join(PACKAGE_ROOT, 'REFINE_SKILL.md');
+  const refineSkillDest = path.join(TARGET_DIR, 'REFINE_SKILL.md');
 
   // Check if running in the package source directory (dev mode)
   if (PACKAGE_ROOT === TARGET_DIR) {
@@ -73,17 +75,26 @@ async function update() {
     }
   }
 
-  // Update SKILL.md and .claude/commands/implement-feature.md
-  const answer = await prompt('\nUpdate SKILL.md and .claude/commands/implement-feature.md? (Y/n): ');
+  // Update skill files and .claude/commands/
+  const answer = await prompt('\nUpdate skill files and .claude/commands/? (Y/n): ');
   if (answer !== 'n' && answer !== 'no') {
     fs.copyFileSync(skillSrc, skillDest);
     console.log('Updated SKILL.md');
 
-    // Also update the Claude Code skill command
-    const skillCommandDest = path.join(TARGET_DIR, '.claude', 'commands', 'implement-feature.md');
-    if (fs.existsSync(path.dirname(skillCommandDest))) {
-      fs.copyFileSync(skillSrc, skillCommandDest);
+    if (fs.existsSync(refineSkillSrc)) {
+      fs.copyFileSync(refineSkillSrc, refineSkillDest);
+      console.log('Updated REFINE_SKILL.md');
+    }
+
+    const claudeCommandsDir = path.join(TARGET_DIR, '.claude', 'commands');
+    if (fs.existsSync(claudeCommandsDir)) {
+      fs.copyFileSync(skillSrc, path.join(claudeCommandsDir, 'implement-feature.md'));
       console.log('Updated .claude/commands/implement-feature.md');
+
+      if (fs.existsSync(refineSkillSrc)) {
+        fs.copyFileSync(refineSkillSrc, path.join(claudeCommandsDir, 'refine-feature.md'));
+        console.log('Updated .claude/commands/refine-feature.md');
+      }
     }
   }
 
@@ -96,7 +107,9 @@ Updated:
   - .blueprint/templates/
   - .blueprint/ways_of_working/
   - SKILL.md
+  - REFINE_SKILL.md
   - .claude/commands/implement-feature.md (if exists)
+  - .claude/commands/refine-feature.md (if exists)
 
 Preserved:
   - .blueprint/features/

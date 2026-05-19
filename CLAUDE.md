@@ -81,7 +81,7 @@ murmur8 is a multi-agent workflow framework that coordinates four AI agents to a
 - `src/commands/` - CLI command handlers (init, update, history, murm, queue, validate, etc.)
 - `src/index.js` - Main exports for programmatic use
 - `src/config-factory.js` - Factory pattern for JSON config file management (read/write/defaults)
-- `src/init.js` - Core init logic: copies `.blueprint/`, `.business_context/`, SKILL.md and REFINE_SKILL.md to target project (NOTE: REFINE_SKILL.md copy not yet wired — only SKILL.md is currently installed on init)
+- `src/init.js` - Core init logic: copies `.blueprint/`, `.business_context/`, SKILL.md, and REFINE_SKILL.md to target project
 - `src/update.js` - Updates framework files while preserving user content in `features/` and `system_specification/`
 - `src/orchestrator.js` - Queue management for the pipeline (`.claude/implement-queue.json`)
 - `src/validate.js` - Pre-flight checks (directories, specs, Node.js version)
@@ -111,7 +111,7 @@ murmur8 is a multi-agent workflow framework that coordinates four AI agents to a
 - `.blueprint/ways_of_working/` - Development rituals
 - `.business_context/` - Placeholder for business context documents
 - `SKILL.md` - The `/implement-feature` skill definition (copied to `.claude/commands/` on init)
-- `REFINE_SKILL.md` - The `/refine-feature` skill definition (NOT yet wired into init — future work)
+- `REFINE_SKILL.md` - The `/refine-feature` skill definition (copied to `.claude/commands/refine-feature.md` on init/update)
 
 ### Pipeline Flow
 
