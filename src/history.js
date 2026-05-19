@@ -90,6 +90,36 @@ function storeStageFeedback(slug, stage, feedback) {
   }
 }
 
+/**
+ * Updates (merges) stage data into the most recent history entry for a slug.
+ * Used by the CLI skill to record per-stage timing after each pipeline step.
+ * @param {string} slug - Feature slug
+ * @param {string} stage - Stage name (alex, cass, nigel, codey-plan, codey-implement)
+ * @param {object} data - Stage fields to merge (startedAt, completedAt, durationMs, status, etc.)
+ * @returns {boolean} True if updated successfully
+ */
+function updateStage(slug, stage, data) {
+  try {
+    const history = readHistoryFile();
+    if (history.error) {
+      console.warn('Warning: History file is corrupted, cannot update stage.');
+      return false;
+    }
+    const entry = history.findLast(e => e.slug === slug);
+    if (!entry) {
+      console.warn(`Warning: No history entry found for slug: ${slug}`);
+      return false;
+    }
+    if (!entry.stages) entry.stages = {};
+    entry.stages[stage] = { ...entry.stages[stage], ...data };
+    writeHistoryFile(history);
+    return true;
+  } catch (err) {
+    console.warn(`Warning: Failed to update stage: ${err.message}`);
+    return false;
+  }
+}
+
 function formatDuration(ms) {
   const seconds = Math.floor(ms / 1000);
   const minutes = Math.floor(seconds / 60);
@@ -427,6 +457,7 @@ module.exports = {
   writeHistoryFile,
   recordHistory,
   storeStageFeedback,
+  updateStage,
   displayHistory,
   showStats,
   clearHistory,

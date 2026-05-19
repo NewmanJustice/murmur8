@@ -138,7 +138,7 @@ If no history exists, skip this step silently.
 ### Step 5: Initialize
 Create/read `{QUEUE}`. Ensure dirs exist: `mkdir -p {FEAT_DIR} {TEST_DIR}`
 
-Unless `--no-history`, start a history entry (slug, startedAt, stages, feedback).
+Unless `--no-history`, note the pipeline start time (ISO 8601 UTC) in your working context as `PIPELINE_START`.
 
 ---
 
@@ -146,7 +146,7 @@ Unless `--no-history`, start a history entry (slug, startedAt, stages, feedback)
 
 **Announce:** `} Alex — creating feature spec`
 
-**History:** Record `stages.alex.startedAt` before spawning.
+**History:** Note `ALEX_START` (ISO 8601 UTC) before spawning.
 
 **Runtime prompt:** `.blueprint/prompts/alex-runtime.md`
 
@@ -204,7 +204,7 @@ Brief summary (5 bullets max): intent, key behaviours, scope, story themes, tens
 
 **On completion:**
 1. Verify `{FEAT_SPEC}` and `{FEAT_DIR}/handoff-alex.md` exist
-2. **Record history:** `stages.alex = { completedAt, durationMs, status: "success" }`
+2. Note `ALEX_END` and compute `ALEX_DURATION_MS`
 3. Update queue: move feature to `cassQueue`
 4. If `--pause-after=alex`: Show output path, ask user to continue
 
@@ -247,7 +247,7 @@ FEEDBACK: {"rating":N,"issues":["..."],"rec":"proceed|pause|revise"}
 
 **Announce:** ` } Cass — writing user stories`
 
-**History:** Record `stages.cass.startedAt` before spawning.
+**History:** Note `CASS_START` (ISO 8601 UTC) before spawning.
 
 **Runtime prompt:** `.blueprint/prompts/cass-runtime.md`
 
@@ -311,7 +311,7 @@ Brief summary: story count, filenames, behaviours covered (5 bullets max)
 **On completion:**
 1. Verify at least one `story-*.md` exists in `{FEAT_DIR}`
 2. Verify `{FEAT_DIR}/handoff-cass.md` exists
-2. **Record history:** `stages.cass = { completedAt, durationMs, status: "success" }`
+2. Note `CASS_END` and compute `CASS_DURATION_MS`
 3. Update queue: move feature to `nigelQueue`
 4. If `--pause-after=cass`: Show story paths, ask user to continue
 
@@ -349,7 +349,7 @@ FEEDBACK: {"rating":N,"issues":["..."],"rec":"proceed|pause|revise"}
 
 **Announce:** `  } Nigel — building test spec`
 
-**History:** Record `stages.nigelSpec.startedAt` before spawning.
+**History:** Note `NIGEL_SPEC_START` (ISO 8601 UTC) before spawning.
 
 **Runtime prompt:** `.blueprint/prompts/nigel-runtime.md`
 
@@ -412,7 +412,7 @@ Brief summary: test case count planned, AC coverage %, assumptions (5 bullets ma
 
 **On completion:**
 1. Verify `{TEST_SPEC}` and `{FEAT_DIR}/handoff-nigel.md` exist
-2. **Record history:** `stages.nigelSpec = { completedAt, durationMs, status: "success" }`
+2. Note `NIGEL_SPEC_END` and compute `NIGEL_SPEC_DURATION_MS`
 
 **On failure:** See [Error Handling with Retry](#error-handling-with-smart-retry)
 
@@ -422,7 +422,7 @@ Brief summary: test case count planned, AC coverage %, assumptions (5 bullets ma
 
 **Announce:** `  } Nigel — writing executable tests`
 
-**History:** Record `stages.nigelTests.startedAt` before spawning.
+**History:** Note `NIGEL_TESTS_START` (ISO 8601 UTC) before spawning.
 
 Use the Task tool with `subagent_type="general-purpose"`:
 
@@ -460,7 +460,7 @@ Brief summary: test count, file(s) written, any tests deferred
 
 **On completion:**
 1. Verify `{TEST_FILE}` exists
-2. **Record history:** `stages.nigelTests = { completedAt, durationMs, status: "success" }`
+2. Note `NIGEL_TESTS_END` and compute `NIGEL_TESTS_DURATION_MS`
 3. Update queue: move feature to `codeyQueue`
 4. If `--pause-after=nigel`: Show test paths, ask user to continue
 
@@ -499,7 +499,7 @@ FEEDBACK: {"rating":N,"issues":["..."],"rec":"proceed|pause|revise"}
 
 **Announce:** `   } Codey — drafting implementation plan`
 
-**History:** Record `stages.codeyPlan.startedAt` before spawning.
+**History:** Note `CODEY_PLAN_START` (ISO 8601 UTC) before spawning.
 
 **Runtime prompt:** `.blueprint/prompts/codey-plan-runtime.md`
 
@@ -556,7 +556,7 @@ Brief summary: files planned, step count, identified risks
 
 **On completion:**
 1. Verify `{PLAN}` exists
-2. **Record history:** `stages.codeyPlan = { completedAt, durationMs, status: "success" }`
+2. Note `CODEY_PLAN_END` and compute `CODEY_PLAN_DURATION_MS`
 3. If `--pause-after=codey-plan`: Show plan path, ask user to continue
 
 **On failure:** See [Error Handling with Retry](#error-handling-with-smart-retry)
@@ -567,7 +567,7 @@ Brief summary: files planned, step count, identified risks
 
 **Announce:** `    } Codey — implementing feature`
 
-**History:** Record `stages.codeyImplement.startedAt` before spawning.
+**History:** Note `CODEY_IMPL_START` (ISO 8601 UTC) before spawning.
 
 **Runtime prompt:** `.blueprint/prompts/codey-implement-runtime.md`
 
@@ -637,13 +637,13 @@ for each step in IMPLEMENTATION_PLAN.steps:
 
 **On all steps complete:**
 1. Run full test suite: `node --test {TEST_FILE}`
-2. **Record history:** `stages.codeyImplement = { completedAt, durationMs, status: "success", stepsCompleted: N }`
+2. Note `CODEY_IMPL_END`, compute `CODEY_IMPL_DURATION_MS`, and note `STEPS_COMPLETED`
 3. Update queue: move feature to `completed`
 4. Proceed to auto-commit (unless `--no-commit`)
 
 **On partial failure:**
 1. Record which steps completed and which failed
-2. **Record history:** `stages.codeyImplement = { status: "partial", stepsCompleted: M, totalSteps: N, failedAt: step }`
+2. Note partial completion: `STEPS_COMPLETED=M`, `TOTAL_STEPS=N`, `FAILED_AT_STEP=step`
 3. Report to user with option to continue manually
 
 **On failure:** See [Error Handling with Retry](#error-handling-with-smart-retry)
@@ -694,17 +694,28 @@ After commit, remove the slug's row from `{BACKLOG}` (if it exists). Stage with 
 
 **Modules:** `src/history.js`, `src/cost.js`
 
-Unless `--no-history` flag is set, finalize the history entry:
+Unless `--no-history` flag is set, build the history entry JSON from the timestamps noted during the run and write it via the CLI:
 
-```javascript
-historyEntry.status = "success";
-historyEntry.completedAt = new Date().toISOString();
-historyEntry.totalDurationMs = completedAt - startedAt;
-historyEntry.commitHash = "{hash}";
-historyEntry.totalTokens = { input: N, output: M };
-historyEntry.totalCost = X.XXX;
-// Save to .claude/pipeline-history.json
+```bash
+node bin/cli.js history record '{
+  "slug": "{slug}",
+  "status": "success",
+  "startedAt": "<PIPELINE_START>",
+  "completedAt": "<now ISO 8601>",
+  "totalDurationMs": <elapsed ms>,
+  "commitHash": "<hash or null>",
+  "stages": {
+    "alex":             { "startedAt": "<ALEX_START>",        "completedAt": "<ALEX_END>",        "durationMs": <ALEX_DURATION_MS>,        "status": "success" },
+    "cass":             { "startedAt": "<CASS_START>",        "completedAt": "<CASS_END>",        "durationMs": <CASS_DURATION_MS>,        "status": "success" },
+    "nigel-spec":       { "startedAt": "<NIGEL_SPEC_START>",  "completedAt": "<NIGEL_SPEC_END>",  "durationMs": <NIGEL_SPEC_DURATION_MS>,  "status": "success" },
+    "nigel-tests":      { "startedAt": "<NIGEL_TESTS_START>", "completedAt": "<NIGEL_TESTS_END>", "durationMs": <NIGEL_TESTS_DURATION_MS>, "status": "success" },
+    "codey-plan":       { "startedAt": "<CODEY_PLAN_START>",  "completedAt": "<CODEY_PLAN_END>",  "durationMs": <CODEY_PLAN_DURATION_MS>,  "status": "success" },
+    "codey-implement":  { "startedAt": "<CODEY_IMPL_START>",  "completedAt": "<CODEY_IMPL_END>",  "durationMs": <CODEY_IMPL_DURATION_MS>,  "status": "success", "stepsCompleted": <N> }
+  }
+}'
 ```
+
+Omit stages that were skipped (e.g. cass when `--skip-stories` was used). Set `status` to `"failed"` and add `"failedStage": "<stage>"` on failure, or `"paused"` and `"pausedAfter": "<stage>"` on pause.
 
 **Display summary:** Stage status (✓/✗), test count, duration, commit hash, feedback ratings, cost breakdown per stage.
 

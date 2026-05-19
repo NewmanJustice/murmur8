@@ -1,7 +1,7 @@
 const { init } = require('./init');
 const { update } = require('./update');
 const { validate, formatOutput, checkNodeVersion } = require('./validate');
-const { recordHistory, displayHistory, showStats, clearHistory, storeStageFeedback } = require('./history');
+const { recordHistory, displayHistory, showStats, clearHistory, storeStageFeedback, updateStage } = require('./history');
 const {
   readConfig,
   writeConfig,
@@ -108,6 +108,7 @@ module.exports = {
   showStats,
   clearHistory,
   storeStageFeedback,
+  updateStage,
   // Retry module exports
   readConfig,
   writeConfig,
