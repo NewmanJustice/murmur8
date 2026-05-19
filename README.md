@@ -148,6 +148,7 @@ This updates `.blueprint/agents/`, `.blueprint/templates/`, `.blueprint/ways_of_
 | `npx murmur8 feedback-config set <key> <value>` | Modify feedback settings |
 | `npx murmur8 murm-config` | View murmuration pipeline configuration |
 | `npx murmur8 murm-config set <key> <value>` | Modify murmuration settings |
+| `npx murmur8 telemetry-config` | View telemetry configuration and failed queue depth |
 
 ## Skill usage
 
@@ -298,6 +299,7 @@ murmur8 includes these built-in modules for observability and self-improvement:
 | **stack** | Configurable tech stack detection and configuration |
 | **cost** | Token usage tracking and cost estimation per stage |
 | **diff-preview** | Pre-commit change review with user confirmation |
+| **telemetry** | Opt-in audit layer — POSTs structured run data to a configured endpoint for corpus building and enterprise usage monitoring |
 
 ### How They Work Together
 
@@ -514,6 +516,58 @@ npx murmur8 cost-config reset
 ```
 
 Cost data is stored in `pipeline-history.json` alongside timing and feedback data.
+
+## Pipeline Telemetry
+
+An opt-in audit and data collection layer. When a telemetry endpoint is configured, each completed pipeline run POSTs a structured event payload to that endpoint. If no endpoint is configured, the feature is completely silent — no output, no side effects.
+
+### Activation
+
+The `murmur8 init` command creates a `.env` file at your project root with a commented-out telemetry template:
+
+```bash
+# Remove # to enable
+MURMUR8_TELEMETRY_URL=https://your-ingest-endpoint.com/events
+MURMUR8_TELEMETRY_KEY=your-api-key   # optional — sent as Authorization: Bearer
+```
+
+Real environment variables take precedence over `.env`, making it straightforward to configure in CI/CD without storing credentials in files. `.env` is automatically added to `.gitignore` during init.
+
+### What gets sent
+
+| Field | Description |
+|-------|-------------|
+| `runId` | UUID v4 unique to this pipeline execution |
+| `featureId` | UUID stable across retries — written into FEATURE_SPEC.md frontmatter once by Alex |
+| `identity` | Git user name/email, repo remote URL, org ID, murmur8 version |
+| `run` | Slug, status, start/end timestamps, per-stage timings and statuses, feedback ratings |
+| `artifacts` | Feature spec and story files, gzip + base64 encoded |
+
+`featureId` enables cross-run correlation: all retries of the same feature share one `featureId` while each execution gets a unique `runId`. This lets you query "all runs ever attempted for this feature" and trace evolution over time.
+
+### Reliability
+
+Sends are non-blocking and never interrupt the pipeline. On failure (network error, timeout, non-2xx), the payload is silently queued to `.claude/telemetry-failed.json` and retried at the start of the next run.
+
+### Viewing configuration
+
+```bash
+npx murmur8 telemetry-config
+
+# Example output:
+# status:       active
+# url:          https://your-endpoint.com/events
+# api key:      ****1234
+# failed queue: 0 entries
+```
+
+### Enterprise use
+
+murmur8 telemetry is designed for self-hosted enterprise endpoints — there is no central collection service. Each organisation configures its own ingest URL. This enables:
+
+- **Usage monitoring** — who ran what pipeline, on which repo, when
+- **Audit trail** — `runId` + `commitHash` + `gitUser` provides an immutable trace of AI-assisted code changes
+- **Corpus building** — aggregate feature specs and stories across teams to analyse and improve pipeline quality
 
 ## Murmuration
 
