@@ -81,7 +81,7 @@ murmur8 is a multi-agent workflow framework that coordinates four AI agents to a
 - `src/commands/` - CLI command handlers (init, update, history, murm, queue, validate, etc.)
 - `src/index.js` - Main exports for programmatic use
 - `src/config-factory.js` - Factory pattern for JSON config file management (read/write/defaults)
-- `src/init.js` - Core init logic: copies `.blueprint/`, `.business_context/`, and SKILL.md to target project
+- `src/init.js` - Core init logic: copies `.blueprint/`, `.business_context/`, SKILL.md and REFINE_SKILL.md to target project (NOTE: REFINE_SKILL.md copy not yet wired — only SKILL.md is currently installed on init)
 - `src/update.js` - Updates framework files while preserving user content in `features/` and `system_specification/`
 - `src/orchestrator.js` - Queue management for the pipeline (`.claude/implement-queue.json`)
 - `src/validate.js` - Pre-flight checks (directories, specs, Node.js version)
@@ -100,6 +100,8 @@ murmur8 is a multi-agent workflow framework that coordinates four AI agents to a
 - `src/diff-preview.js` - Pre-commit change review with user confirmation
 - `src/tools/` - Tool schemas, validation, and prompts for Claude native features
 - `src/utils.js` - Shared utility functions (prompt for user input, etc.)
+- `src/refine.js` - Pure helper functions for the /refine-feature skill (10 exports: parseRefinementArgs, loadRefinementContext, applySpecDiff, buildRefinementPayload, linkParentRun, isTechnicalFeature, filterAffectedStories, buildStoryChanges, buildChangeSummary, isPauseBypassable)
+- `src/commands/refine.js` - CLI handler for `murmur8 refine-feature` command (alias: refine-feature → refine in bin/cli.js)
 
 ### Bundled Assets
 
@@ -109,6 +111,7 @@ murmur8 is a multi-agent workflow framework that coordinates four AI agents to a
 - `.blueprint/ways_of_working/` - Development rituals
 - `.business_context/` - Placeholder for business context documents
 - `SKILL.md` - The `/implement-feature` skill definition (copied to `.claude/commands/` on init)
+- `REFINE_SKILL.md` - The `/refine-feature` skill definition (NOT yet wired into init — future work)
 
 ### Pipeline Flow
 
@@ -116,6 +119,12 @@ The `/implement-feature` skill spawns agents sequentially via Task tool sub-agen
 
 ```
 Alex (feature spec) → [Cass (user stories)] → Nigel (tests) → Codey (plan → implement) → Auto-commit
+```
+
+The `/refine-feature` skill follows a similar flow but is diff-aware:
+
+```
+Load context → Alex (conversation + spec diff) → [Cass (affected stories only)] → Nigel (affected tests only) → MANDATORY PAUSE → Codey (implement) → Auto-commit
 ```
 
 **Smart Story Routing (v2.7):** Cass stage is automatically skipped for technical features (refactoring, optimization, infrastructure) to save ~25-40k tokens. User-facing features go through Cass.
@@ -176,7 +185,21 @@ The `/implement-feature` skill works with both Claude Code and GitHub Copilot CL
 
 Both CLIs use the same skill file (via symlink), ensuring identical behavior. Run `/implement-feature` in either tool.
 
+### Refine Feature Skill
+
+`/refine-feature [slug]` — reopen a completed feature for iterative refinement.
+
+Flow: Alex reads existing artifacts + converses with user → proposes spec diff → user approves → Cass updates affected stories only → Nigel updates affected tests only → **mandatory pause** (no flag can bypass) → user confirms → Codey implements.
+
+Key rules:
+- `featureId` in YAML frontmatter is NEVER changed across refinements
+- `isPauseBypassable()` always returns `false` — the Codey gate cannot be bypassed by any flag
+- Telemetry: `parentRunId` links each refinement to the run it refines; `type: "refinement"`; artifact diffs not full files
+- Cass skipped if no `story-*.md` files exist (technical feature)
+- `linkParentRun(slug, history)` finds the most recent run for slug by `completedAt`, returns `{ parentRunId, type, featureId }`
+
 ## Skills
 
 Available skills (invoke via `/skill-name` in Claude Code):
 - `/implement-feature` - Run the full Alex → Cass → Nigel → Codey pipeline
+- `/refine-feature` - Refine an existing feature conversationally (spec diff → story/test updates → Codey)
