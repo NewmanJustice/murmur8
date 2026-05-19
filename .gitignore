@@ -20,3 +20,5 @@ node_modules/
 .claude/parallel-config.json
 .claude/parallel-queue.json
 .claude/parallel.lock
+
+FEATURE_IDEAS.md

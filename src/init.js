@@ -3,6 +3,7 @@ const path = require('path');
 
 const { detectStackConfig, writeStackConfig, CONFIG_FILE: STACK_CONFIG_FILE } = require('./stack');
 const { prompt } = require('./utils');
+const { ensureDotenv, ensureGitignore } = require('./telemetry');
 
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
 const TARGET_DIR = process.cwd();
@@ -175,6 +176,10 @@ async function init() {
   } else {
     console.log('Stack config already exists, skipping detection');
   }
+
+  // Ensure .env template and .gitignore entry for telemetry
+  ensureDotenv(TARGET_DIR);
+  ensureGitignore(TARGET_DIR);
 
   console.log(`
 murmur8 initialized successfully!

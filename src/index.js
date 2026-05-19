@@ -94,6 +94,9 @@ const {
   markWorktreeAborted,
   getPromptText
 } = require('./diff-preview');
+const { loadConfig, generateRunId, ensureFeatureId, buildPayload, compressArtifact,
+        enqueueFailure, retryQueue, ensureDotenv, ensureGitignore, formatTelemetryConfig
+      } = require('./telemetry');
 const tools = require('./tools');
 const theme = require('./theme');
 
@@ -159,6 +162,17 @@ module.exports = {
   setStackConfigValue,
   detectStackConfig,
   displayStackConfig,
+  // Telemetry module exports
+  loadConfig,
+  generateRunId,
+  ensureFeatureId,
+  buildPayload,
+  compressArtifact,
+  enqueueFailure,
+  retryQueue,
+  ensureDotenv,
+  ensureGitignore,
+  formatTelemetryConfig,
   // Tools module (model native features)
   tools,
   // Theme module (murmuration visual theming)
