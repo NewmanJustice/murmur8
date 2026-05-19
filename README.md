@@ -30,7 +30,7 @@ Every refinement is linked to the run it came from, so the history of a feature 
 
 ### Turning it up to 11
 
-If you using the skill with Claude Code or Github Copilot, or via an npx command, you can run multiple of these pipelines at the same time, working independantly on features in parallel. The pipeline look at whats required and work out how multiple fetaures can be delivered at the same time withough Nigel 1, 2, and 3 treading on each others toes in the code base. The pipeline runs EXACTLY the same way... just mutiple of them at the same time! 
+If you using the skill with Claude Code or Github Copilot, or via an npx command, you can run multiple of these pipelines at the same time, working independantly on features in parallel. The pipeline looks at whats required and works out how multiple fetaures can be delivered at the same time withough Nigel 1, 2, and 3 treading on each others toes in the code base. The pipeline runs EXACTLY the same way... just mutiple of them at the same time! 
 
 ## Quick Start
 
