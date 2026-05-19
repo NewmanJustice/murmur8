@@ -1,10 +1,10 @@
 # murmur8
 
-Most AI coding tools are a black box. You describe what you want, something happens, and code appears. If it's wrong, you describe it again and hope for better. There's no process, no trail, no shared understanding of why decisions were made.
+AI coding tools can be a black box. You describe what you want, magic happens, and code appears. If it's wrong, you describe it again and hope for better. There's no process, no trail, no shared understanding of why decisions were made.
 
-murmur8 is different. It runs a structured, documented pipeline — the kind a good engineering team would run naturally. Each agent produces real, readable artefacts: a feature spec, user stories, a test plan, an implementation. You can read every one of them, understand the reasoning, and step in at any point. It's not magic. It's a repeatable process that happens to move very fast.
+murmur8 is different. Agents Alex, Cass, Nigel, and Codey run a structured, documented pipeline — the kind a good engineering team would run naturally. Each agent produces real, readable artefacts: a feature spec, user stories, a test plan, an implementation. You can read every one of them, understand the reasoning, and step in at any point. It's not magic. It's a repeatable process that happens to move very fast.
 
-Like a murmuration of starlings, the agents move together — each one responding to what came before, building something greater than any of them could produce alone.
+Like a murmuration of starlings, the agents move together — each one responding to what came before and building upon it.
 
 ## The Workflow
 
@@ -12,7 +12,7 @@ Like a murmuration of starlings, the agents move together — each one respondin
 
 Every feature starts with intent. If you're setting up a new project, murmur8 will walk you through creating a system specification interactively — Alex asks questions, you answer, and together you produce a document that grounds everything that follows. If a feature spec doesn't exist yet, the same thing happens at the feature level.
 
-You can also trigger this explicitly with `--interactive`. This is useful when an idea is still fuzzy. Rather than writing a spec yourself, you have a conversation with Alex until the shape of the feature becomes clear. The spec that comes out the other side is yours to review and approve before anything else runs.
+You can also trigger this explicitly with `--interactive` flag. This is useful when an idea is still fuzzy, you can have a conversation with Alex until the shape of the feature becomes clear. The spec that comes out the other side is yours to review and approve before anything else runs.
 
 ### The pipeline runs
 
@@ -24,9 +24,13 @@ At every handoff, the agent writes a summary of what it did, what it decided, an
 
 The first run won't always land exactly right. Requirements shift, something was misunderstood, or the implementation reveals a gap in the spec. That's normal.
 
-`/refine-feature` reopens the conversation. Alex reads what was built, you tell it what needs to change, and it proposes an updated spec diff for your approval. From there Cass updates only the affected stories, Nigel updates only the affected tests, and Codey reimplements. The pipeline pauses before Codey runs — you always see the full picture of what's changing before any code is touched.
+`/refine-feature` reopens the conversation. You can discuss with Alex whats not right, provide error logs, or user feedback. Alex reads what was built, and describes what needs to change, and proposes an updated spec diff for your approval. From there Cass updates only the affected stories, Nigel updates only the affected tests, and Codey reimplements. The pipeline pauses before Codey runs — you always see the full picture of what's changing before any code is touched.
 
 Every refinement is linked to the run it came from, so the history of a feature — original intent, what changed, and why — is always traceable.
+
+### Turning it up to 11
+
+If you using the skill with Claude Code or Github Copilot, or via an npx command, you can run multiple of these pipelines at the same time, working independantly on features in parallel. The pipeline look at whats required and work out how multiple fetaures can be delivered at the same time withough Nigel 1, 2, and 3 treading on each others toes in the code base. The pipeline runs EXACTLY the same way... just mutiple of them at the same time! 
 
 ## Quick Start
 
