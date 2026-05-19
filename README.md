@@ -1,18 +1,53 @@
 # murmur8
 
-A multi-agent workflow framework for automated feature development. Four specialised AI agents collaborate in sequence to take features from specification to implementation, with built-in feedback loops and self-improvement capabilities. 
+Most AI coding tools are a black box. You describe what you want, something happens, and code appears. If it's wrong, you describe it again and hope for better. There's no process, no trail, no shared understanding of why decisions were made.
 
-Like a murmuration of starlings, individual agents move together as one, each responding to its neighbours to create something greater than the sum of its parts.
+murmur8 is different. It runs a structured, documented pipeline — the kind a good engineering team would run naturally. Each agent produces real, readable artefacts: a feature spec, user stories, a test plan, an implementation. You can read every one of them, understand the reasoning, and step in at any point. It's not magic. It's a repeatable process that happens to move very fast.
 
-# TLDR - Using murmur8
+Like a murmuration of starlings, the agents move together — each one responding to what came before, building something greater than any of them could produce alone.
 
-## Using murmur8 inside Claude Code or Copilot CLI
-Initialize with `npx murmur8 init`, then run `/implement-feature your-feature` in Claude Code or Copilot CLI. Four AI agents collaborate to turn your idea into tested, working code — from spec to implementation. Add up to 3 feature slugs and the murmuration magic will build them in paralell in an isolated git worktree. 
+## The Workflow
 
-## Using murmur8 outside of Claude Code or Copilot CLI
-Initialize with `npx murmur8 init`, then run `npx murmur8 murm feature-a feature-b` from your terminal. Each feature gets an isolated git worktree and runs its own pipeline. Successful features auto-merge to main. Use `--dry-run` to preview the plan first.
+### Start with a conversation
+
+Every feature starts with intent. If you're setting up a new project, murmur8 will walk you through creating a system specification interactively — Alex asks questions, you answer, and together you produce a document that grounds everything that follows. If a feature spec doesn't exist yet, the same thing happens at the feature level.
+
+You can also trigger this explicitly with `--interactive`. This is useful when an idea is still fuzzy. Rather than writing a spec yourself, you have a conversation with Alex until the shape of the feature becomes clear. The spec that comes out the other side is yours to review and approve before anything else runs.
+
+### The pipeline runs
+
+Once there's a spec, the pipeline takes over. Alex hands off to Cass, who writes user stories with explicit acceptance criteria. Cass hands off to Nigel, who turns those stories into a test plan and executable tests. Nigel hands off to Codey, who implements until the tests pass.
+
+At every handoff, the agent writes a summary of what it did, what it decided, and what the next agent needs to know. These aren't logs — they're readable documents. If something goes wrong, or you want to understand why a decision was made, you can read the trail. The spec, the stories, the test plan, the implementation plan: they all live in your repository alongside the code.
+
+### Refine it
+
+The first run won't always land exactly right. Requirements shift, something was misunderstood, or the implementation reveals a gap in the spec. That's normal.
+
+`/refine-feature` reopens the conversation. Alex reads what was built, you tell it what needs to change, and it proposes an updated spec diff for your approval. From there Cass updates only the affected stories, Nigel updates only the affected tests, and Codey reimplements. The pipeline pauses before Codey runs — you always see the full picture of what's changing before any code is touched.
+
+Every refinement is linked to the run it came from, so the history of a feature — original intent, what changed, and why — is always traceable.
+
+## Quick Start
+
+**Inside Claude Code or Copilot CLI:**
+```bash
+npx murmur8 init
+/implement-feature your-feature
+```
+
+**From the terminal (parallel execution):**
+```bash
+npx murmur8 init
+npx murmur8 murm feature-a feature-b feature-c
+```
+
+Add up to three slugs and each feature runs in an isolated git worktree simultaneously. Successful features auto-merge to main. Use `--dry-run` to preview the plan before committing.
 
 ## Upgrading to v4.0
+
+<details>
+<summary>Breaking changes and migration notes</summary>
 
 v4.0 completes the murmuration theming by renaming all parallel internals. Existing users should be aware of the following breaking changes.
 
@@ -31,6 +66,8 @@ Legacy on-disk files (`.claude/parallel-config.json`, `.claude/parallel-queue.js
 ### Backward-compatible aliases
 
 The CLI commands `parallel`, `murmuration`, and `parallel-config` continue to work as aliases for `murm` and `murm-config` respectively.
+
+</details>
 
 ## Agents
 
