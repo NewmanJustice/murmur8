@@ -1,5 +1,7 @@
 # murmur8
 
+![murmur8](.github/assets/github-readme-header.svg)
+
 AI coding tools can be a black box. You describe what you want, magic happens, and code appears. If it's wrong, you describe it again and hope for better. There's no process, no trail, no shared understanding of why decisions were made.
 
 murmur8 is different. Agents Alex, Cass, Nigel, and Codey run a structured, documented pipeline — the kind a good engineering team would run naturally. Each agent produces real, readable artefacts: a feature spec, user stories, a test plan, an implementation. You can read every one of them, understand the reasoning, and step in at any point. It's not magic. It's a repeatable process that happens to move very fast.

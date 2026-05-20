@@ -22,3 +22,4 @@ node_modules/
 .claude/parallel.lock
 
 FEATURE_IDEAS.md
+claudeinit.sh
