@@ -33,6 +33,7 @@
     "src",
     ".blueprint",
     ".business_context",
-    "SKILL.md"
+    "SKILL.md",
+    "REFINE_SKILL.md"
   ]
 }
