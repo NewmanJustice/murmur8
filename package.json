@@ -24,6 +24,7 @@
     "url": "git+https://github.com/NewmanJustice/murmur8.git"
   },
   "license": "MIT",
+  "logo": ".github/assets/murmur8-npm-icon.svg",
   "engines": {
     "node": ">=18.0.0"
   },
