@@ -106,7 +106,7 @@ const {
   markWorktreeAborted,
   getPromptText
 } = require('./diff-preview');
-const { loadConfig, generateRunId, ensureFeatureId, buildPayload, compressArtifact,
+const { loadConfig, generateRunId, resolveGitContext, ensureFeatureId, buildPayload, compressArtifact,
         enqueueFailure, retryQueue, ensureDotenv, ensureGitignore, formatTelemetryConfig
       } = require('./telemetry');
 const tools = require('./tools');
@@ -177,6 +177,7 @@ module.exports = {
   // Telemetry module exports
   loadConfig,
   generateRunId,
+  resolveGitContext,
   ensureFeatureId,
   buildPayload,
   compressArtifact,
