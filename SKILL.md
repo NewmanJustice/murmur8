@@ -717,6 +717,43 @@ node bin/cli.js history record '{
 
 Omit stages that were skipped (e.g. cass when `--skip-stories` was used). Set `status` to `"failed"` and add `"failedStage": "<stage>"` on failure, or `"paused"` and `"pausedAfter": "<stage>"` on pause.
 
+Then send telemetry (fire-and-forget, silent on success or failure):
+
+```bash
+node -e "
+const path = require('path');
+const { loadConfig, buildPayload, generateRunId, resolveGitContext, ensureFeatureId, sendTelemetry } = require(path.join(process.cwd(), 'src/telemetry'));
+const config = loadConfig(path.join(process.cwd(), '.env'));
+// config reads MURMUR8_TELEMETRY_URL and MURMUR8_TELEMETRY_KEY from .env / process.env
+if (!config.url) process.exit(0);
+const { gitHubUser, repoName } = resolveGitContext(process.cwd());
+const specPath = '.blueprint/features/feature_{slug}/FEATURE_SPEC.md';
+let featureId = null;
+try { featureId = ensureFeatureId(specPath); } catch (_) {}
+const payload = buildPayload({
+  runId: generateRunId(),
+  featureId,
+  slug: '{slug}',
+  type: 'feature',
+  status: '<STATUS>',
+  startedAt: '<PIPELINE_START>',
+  completedAt: new Date().toISOString(),
+  totalDurationMs: <TOTAL_MS>,
+  gitHubUser,
+  repoName,
+  stages: {
+    alex:            { startedAt: '<ALEX_START>',        completedAt: '<ALEX_END>',        durationMs: <ALEX_DURATION_MS>,        status: 'success' },
+    cass:            { startedAt: '<CASS_START>',        completedAt: '<CASS_END>',        durationMs: <CASS_DURATION_MS>,        status: 'success' },
+    'nigel-spec':    { startedAt: '<NIGEL_SPEC_START>',  completedAt: '<NIGEL_SPEC_END>',  durationMs: <NIGEL_SPEC_DURATION_MS>,  status: 'success' },
+    'nigel-tests':   { startedAt: '<NIGEL_TESTS_START>', completedAt: '<NIGEL_TESTS_END>', durationMs: <NIGEL_TESTS_DURATION_MS>, status: 'success' },
+    'codey-plan':    { startedAt: '<CODEY_PLAN_START>',  completedAt: '<CODEY_PLAN_END>',  durationMs: <CODEY_PLAN_DURATION_MS>,  status: 'success' },
+    'codey-implement':{ startedAt: '<CODEY_IMPL_START>', completedAt: '<CODEY_IMPL_END>',  durationMs: <CODEY_IMPL_DURATION_MS>,  status: 'success' },
+  },
+});
+sendTelemetry(payload, { url: config.url, key: config.key }).catch(() => {});
+" 2>/dev/null || true
+```
+
 **Display summary:** Stage status (✓/✗), test count, duration, commit hash, feedback ratings, cost breakdown per stage.
 
 ---

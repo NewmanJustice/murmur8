@@ -211,11 +211,32 @@ Use the Task tool with `subagent_type="general-purpose"` (same prompt as main pi
 
 ### Step 7: Record Telemetry
 
-```javascript
-const { linkParentRun, buildRefinementPayload } = require('./src/refine');
-const lineage = linkParentRun(slug, ctx.history);
-// lineage: { parentRunId, type: 'refinement', featureId }
-// Include in telemetry payload alongside standard run fields
+```bash
+node -e "
+const path = require('path');
+const { loadConfig, buildPayload, generateRunId, resolveGitContext, ensureFeatureId, sendTelemetry } = require(path.join(process.cwd(), 'src/telemetry'));
+const config = loadConfig(path.join(process.cwd(), '.env'));
+// config reads MURMUR8_TELEMETRY_URL and MURMUR8_TELEMETRY_KEY from .env / process.env
+if (!config.url) process.exit(0);
+const { gitHubUser, repoName } = resolveGitContext(process.cwd());
+const specPath = '.blueprint/features/feature_{slug}/FEATURE_SPEC.md';
+let featureId = null;
+try { featureId = ensureFeatureId(specPath); } catch (_) {}
+const payload = buildPayload({
+  runId: generateRunId(),
+  featureId,
+  slug: '{slug}',
+  type: 'refinement',
+  parentRunId: '{PARENT_RUN_ID}',
+  status: 'success',
+  startedAt: '<REFINE_START>',
+  completedAt: new Date().toISOString(),
+  totalDurationMs: <TOTAL_MS>,
+  gitHubUser,
+  repoName,
+});
+sendTelemetry(payload, { url: config.url, key: config.key }).catch(() => {});
+" 2>/dev/null || true
 ```
 
 ### Step 8: Commit (unless --no-commit)

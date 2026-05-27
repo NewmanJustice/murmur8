@@ -70,9 +70,10 @@ featureId: a3f8c2d1-7e54-4b09-8f16-23a1e5d94c72
 2. At pipeline start (Step 5 of SKILL.md), orchestrator generates a `runId` UUID v4 and stores it in working context
 3. Alex writes a `featureId` UUID into FEATURE_SPEC.md YAML frontmatter (if not already present)
 4. Pipeline executes normally; timings, stage statuses, and feedback are collected as usual
-5. At pipeline end (Step 12 of SKILL.md), `src/telemetry.js` builds the payload, compresses artifacts, and POSTs to the configured URL
-6. On success, no user-visible output occurs (silent)
-7. On failure, the payload is appended to `.claude/telemetry-failed.json` silently
+5. At pipeline end (after the `history record` call in Step 12 of SKILL.md), the orchestrator executes an explicit Bash step that calls `loadConfig`, `buildPayload`, `compressArtifact`, and `enqueueFailure` from `src/telemetry.js` to build and POST the payload
+6. For refinement runs, the equivalent send step is executed at Step 7 of REFINE_SKILL.md (after `history record`) using the same building-block functions, with `type: "refinement"` and `parentRunId` added to the payload
+7. On success, no user-visible output occurs (silent)
+8. On failure, the payload is appended to `.claude/telemetry-failed.json` silently
 
 ### Key alternatives or branches
 
@@ -141,6 +142,13 @@ featureId: a3f8c2d1-7e54-4b09-8f16-23a1e5d94c72
 - **Outputs:** Frontmatter with stable `featureId`
 - **Deterministic:** Yes (preserves existing); No for initial generation (random UUID)
 
+### Rule: Explicit Send Invocation in SKILL.md and REFINE_SKILL.md
+
+- **Description:** Both SKILL.md (Step 12) and REFINE_SKILL.md (Step 7) MUST include an explicit Bash step that invokes `src/telemetry.js` building-block functions (`loadConfig`, `buildPayload`, `compressArtifact`, `enqueueFailure`) via a `node -e` inline script after the `history record` call. The step is mandatory and must not be a pseudocode comment — it must be a real, executable Bash command. For REFINE_SKILL.md the payload must include `type: "refinement"` and `parentRunId`.
+- **Inputs:** All stage timings collected during the run, `featureId` from FEATURE_SPEC.md frontmatter, `runId` from working context, `MURMUR8_TELEMETRY_URL` and `MURMUR8_TELEMETRY_KEY` from `.env` / real env
+- **Outputs:** HTTP POST fired (silent on success); payload written to `.claude/telemetry-failed.json` on any error (silent)
+- **Deterministic:** Yes (given same inputs)
+
 ### Rule: Non-blocking Send
 
 - **Description:** The HTTP POST to the telemetry endpoint must not block or throw into the pipeline. Any network or HTTP error results in silent queue, not pipeline abort.
@@ -176,7 +184,8 @@ featureId: a3f8c2d1-7e54-4b09-8f16-23a1e5d94c72
 ### System components
 
 - `src/history.js` — Must pass `runId` to the history entry write
-- `SKILL.md` Step 5 — Must generate `runId`; Step 12 — Must call telemetry send
+- `SKILL.md` Step 5 — Must generate `runId`; Step 12 — Must include an explicit Bash step to invoke `src/telemetry.js` building-block functions after `history record`
+- `REFINE_SKILL.md` Step 7 — Must replace the current pseudocode comment with an explicit Bash step to invoke `src/telemetry.js` building-block functions; payload must include `type: "refinement"` and `parentRunId`
 - `src/init.js` — Must create/append `.env` template and update `.gitignore`
 - `bin/cli.js` — Must register `telemetry-config` command
 - `src/index.js` — Must export telemetry functions
@@ -292,6 +301,7 @@ These are **non-breaking extensions** flagged for Alex/human decision.
 
 ## 12. Change Log (Feature-Level)
 
-| Date       | Change                                 | Reason                         | Raised By |
-|------------|----------------------------------------|--------------------------------|-----------|
-| 2026-05-19 | Initial feature specification created | New feature: telemetry layer   | Alex      |
+| Date       | Change                                                                                              | Reason                                                                                         | Raised By |
+|------------|-----------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------|-----------|
+| 2026-05-19 | Initial feature specification created                                                               | New feature: telemetry layer                                                                   | Alex      |
+| 2026-05-27 | Added Rule: Explicit Send Invocation; updated Behaviour Overview and Dependencies to require real Bash send step in SKILL.md Step 12 and REFINE_SKILL.md Step 7; added REFINE_SKILL.md to dependency list | Gap: runs complete and history is recorded locally but nothing is ever POSTed to the endpoint | Steve     |

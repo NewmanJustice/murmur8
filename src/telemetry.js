@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const crypto = require('crypto');
+const { execFileSync } = require('child_process');
 
 // ---------------------------------------------------------------------------
 // loadConfig — parse .env line by line; real process.env takes precedence
@@ -40,6 +41,41 @@ function generateRunId() {
 }
 
 // ---------------------------------------------------------------------------
+// resolveGitContext — resolves gitHubUser and repoName from git + env
+//
+// gitHubUser fallback chain:
+//   GITHUB_ACTOR → GITHUB_USER → git config user.email → git config user.name → null
+//
+// repoName: last path segment of `git remote get-url origin`, .git suffix stripped
+// Both fields are null when unavailable rather than throwing.
+// ---------------------------------------------------------------------------
+function resolveGitContext(cwd) {
+  function git(...args) {
+    try {
+      return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null;
+    } catch (_) { return null; }
+  }
+
+  const gitHubUser =
+    process.env.GITHUB_ACTOR ||
+    process.env.GITHUB_USER ||
+    git('config', 'user.email') ||
+    git('config', 'user.name') ||
+    null;
+
+  let repoName = null;
+  const remoteUrl = git('remote', 'get-url', 'origin');
+  if (remoteUrl) {
+    // Strip .git suffix, then grab the last path/colon-separated segment
+    const cleaned = remoteUrl.replace(/\.git$/, '');
+    const match = cleaned.match(/[/:]([\w.-]+)$/);
+    if (match) repoName = match[1];
+  }
+
+  return { gitHubUser, repoName };
+}
+
+// ---------------------------------------------------------------------------
 // ensureFeatureId — reads/writes featureId into YAML frontmatter
 // ---------------------------------------------------------------------------
 function ensureFeatureId(specPath) {
@@ -69,9 +105,11 @@ function ensureFeatureId(specPath) {
 // ---------------------------------------------------------------------------
 function buildPayload(runData) {
   const { runId, featureId, slug, status, startedAt, completedAt,
-          totalDurationMs, stages, artifacts, feedback } = runData;
+          totalDurationMs, stages, artifacts, feedback,
+          gitHubUser = null, repoName = null } = runData;
 
-  const run = { featureId, slug, status, startedAt, completedAt, totalDurationMs };
+  const run = { featureId, slug, status, startedAt, completedAt, totalDurationMs,
+                gitHubUser, repoName };
   if (stages) run.stages = stages;
   if (feedback && typeof feedback === 'object' && Object.keys(feedback).length > 0) {
     run.feedback = feedback;
@@ -120,6 +158,43 @@ function retryQueue(queuePath, sendFn) {
     if (!ok) remaining.push(entry);
   }
   fs.writeFileSync(queuePath, JSON.stringify(remaining, null, 2));
+}
+
+// ---------------------------------------------------------------------------
+// sendTelemetry — fire-and-forget HTTP POST; resolves/rejects silently
+// ---------------------------------------------------------------------------
+function sendTelemetry(payload, config) {
+  const { url, key } = config || {};
+  if (!url) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    const body = JSON.stringify(payload);
+    const parsedUrl = new URL(url);
+    const isHttps = parsedUrl.protocol === 'https:';
+    const transport = isHttps ? require('https') : require('http');
+
+    const options = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || (isHttps ? 443 : 80),
+      path: parsedUrl.pathname + (parsedUrl.search || ''),
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+        'X-API-Key': key || '',
+      },
+    };
+
+    const req = transport.request(options, (res) => {
+      res.resume(); // drain and ignore response body
+      resolve();
+    });
+
+    req.setTimeout(10000, () => { req.destroy(); resolve(); });
+    req.on('error', () => resolve());
+    req.write(body);
+    req.end();
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -187,9 +262,11 @@ function formatTelemetryConfig(config, queuePath) {
 module.exports = {
   loadConfig,
   generateRunId,
+  resolveGitContext,
   ensureFeatureId,
   buildPayload,
   compressArtifact,
+  sendTelemetry,
   enqueueFailure,
   retryQueue,
   ensureDotenv,
