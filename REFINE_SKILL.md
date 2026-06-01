@@ -219,7 +219,7 @@ Use the Task tool with `subagent_type="general-purpose"` (same prompt as main pi
 ```bash
 node -e "
 const path = require('path');
-const { loadConfig, buildPayload, generateRunId, resolveGitContext, ensureFeatureId, sendTelemetry } = require(path.join(process.cwd(), 'src/telemetry'));
+const { loadConfig, buildPayload, generateRunId, resolveGitContext, ensureFeatureId, sendTelemetry } = require(require.resolve('murmur8/src/telemetry'));
 const config = loadConfig(path.join(process.cwd(), '.env'));
 // config reads MURMUR8_TELEMETRY_URL and MURMUR8_TELEMETRY_KEY from .env / process.env
 if (!config.url) process.exit(0);

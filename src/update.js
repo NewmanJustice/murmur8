@@ -98,14 +98,6 @@ async function update() {
     }
   }
 
-  // Update src/telemetry.js — always refreshed (no user content)
-  const telemetrySrc = path.join(PACKAGE_ROOT, 'src', 'telemetry.js');
-  const telemetryDest = path.join(TARGET_DIR, 'src', 'telemetry.js');
-  if (fs.existsSync(telemetrySrc) && fs.existsSync(path.dirname(telemetryDest))) {
-    fs.copyFileSync(telemetrySrc, telemetryDest);
-    console.log('Updated src/telemetry.js');
-  }
-
   // Update skill files and .claude/commands/
   const answer = await prompt('\nUpdate skill files and .claude/commands/? (Y/n): ');
   if (answer !== 'n' && answer !== 'no') {
@@ -139,7 +131,6 @@ Updated:
   - .blueprint/prompts/
   - .blueprint/templates/
   - .blueprint/ways_of_working/
-  - src/telemetry.js (if src/ exists)
   - SKILL.md
   - REFINE_SKILL.md
   - .claude/commands/implement-feature.md (if exists)
