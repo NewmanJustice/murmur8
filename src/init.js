@@ -132,10 +132,25 @@ async function init() {
     createCopilotSymlink();
   }
 
-  // Copy refine-feature skill to .claude/commands/
+  // Copy refine-feature skill to .claude/commands/ and create Copilot symlink
   if (fs.existsSync(refineSkillSrc)) {
     fs.copyFileSync(refineSkillSrc, refineSkillCommandDest);
     console.log('Copied skill to .claude/commands/refine-feature.md');
+
+    const copilotRefineDir = path.join(TARGET_DIR, '.github', 'skills', 'refine-feature');
+    const copilotRefinePath = path.join(copilotRefineDir, 'SKILL.md');
+    const relativeRefinePath = path.relative(copilotRefineDir, refineSkillCommandDest);
+    fs.mkdirSync(copilotRefineDir, { recursive: true });
+    if (fs.existsSync(copilotRefinePath)) {
+      fs.unlinkSync(copilotRefinePath);
+    }
+    try {
+      fs.symlinkSync(relativeRefinePath, copilotRefinePath);
+      console.log('Created Copilot CLI symlink at .github/skills/refine-feature/SKILL.md');
+    } catch (err) {
+      fs.copyFileSync(refineSkillCommandDest, copilotRefinePath);
+      console.log('Copied skill to .github/skills/refine-feature/SKILL.md (symlink failed)');
+    }
   }
 
   // Copy framework directories only (not user content directories)

@@ -6,6 +6,29 @@ const { prompt } = require('./utils');
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
 const TARGET_DIR = process.cwd();
 
+function updateCopilotSymlink(skillName, claudeCommandsDir) {
+  const copilotSkillDir = path.join(TARGET_DIR, '.github', 'skills', skillName);
+  const copilotSkillPath = path.join(copilotSkillDir, 'SKILL.md');
+  const claudeSkillPath = path.join(claudeCommandsDir, `${skillName}.md`);
+
+  if (!fs.existsSync(claudeSkillPath)) return;
+
+  const relativePath = path.relative(copilotSkillDir, claudeSkillPath);
+  fs.mkdirSync(copilotSkillDir, { recursive: true });
+
+  if (fs.existsSync(copilotSkillPath)) {
+    fs.unlinkSync(copilotSkillPath);
+  }
+
+  try {
+    fs.symlinkSync(relativePath, copilotSkillPath);
+    console.log(`Updated Copilot CLI symlink at .github/skills/${skillName}/SKILL.md`);
+  } catch (err) {
+    fs.copyFileSync(claudeSkillPath, copilotSkillPath);
+    console.log(`Copied skill to .github/skills/${skillName}/SKILL.md (symlink failed)`);
+  }
+}
+
 // Directories that contain user content and should NOT be overwritten
 const USER_CONTENT_DIRS = [
   'features',
@@ -90,10 +113,12 @@ async function update() {
     if (fs.existsSync(claudeCommandsDir)) {
       fs.copyFileSync(skillSrc, path.join(claudeCommandsDir, 'implement-feature.md'));
       console.log('Updated .claude/commands/implement-feature.md');
+      updateCopilotSymlink('implement-feature', claudeCommandsDir);
 
       if (fs.existsSync(refineSkillSrc)) {
         fs.copyFileSync(refineSkillSrc, path.join(claudeCommandsDir, 'refine-feature.md'));
         console.log('Updated .claude/commands/refine-feature.md');
+        updateCopilotSymlink('refine-feature', claudeCommandsDir);
       }
     }
   }
