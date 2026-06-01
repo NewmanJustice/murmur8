@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
 const { prompt } = require('./utils');
 
@@ -81,6 +82,15 @@ async function update() {
     process.exit(1);
   }
 
+  // Update the npm package first so subsequent file copies use the new version
+  console.log('Updating murmur8 npm package...');
+  try {
+    execSync('npm update murmur8', { cwd: TARGET_DIR, stdio: 'inherit' });
+    console.log('');
+  } catch (err) {
+    console.warn('Warning: npm update murmur8 failed — continuing with installed version\n');
+  }
+
   console.log('Updating agent-workflow...');
   console.log('(Preserving: features/, system_specification/)\n');
 
@@ -127,6 +137,7 @@ async function update() {
 Update complete!
 
 Updated:
+  - murmur8 npm package (node_modules/murmur8/)
   - .blueprint/agents/
   - .blueprint/prompts/
   - .blueprint/templates/
