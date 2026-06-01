@@ -2,6 +2,11 @@
 
 Refine an existing feature by conversing with Alex, then propagating changes through stories, tests, and implementation.
 
+## Execution Contract
+
+**You MUST execute ALL steps in sequence through to Step 8 (telemetry + commit).**
+Do not stop after implementation. The pipeline is not complete until Step 8 runs.
+
 ## Invocation
 
 ```bash
