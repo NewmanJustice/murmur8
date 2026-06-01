@@ -62,10 +62,15 @@ Commands:
   murm-config           View murmuration pipeline configuration
   murm-config set <key> <value>  Modify config (cli, skill, skillFlags, etc.)
   murm-config reset     Reset murmuration configuration to defaults
+  version               Print the installed murmur8 version
   help                  Show this help message
 
   Aliases: parallel, murmuration (same as murm)
            parallel-config (same as murm-config)
+
+Flags:
+  --version, -V         Print version and exit
+  --help, -h            Show this help message
 
 Examples:
   npx murmur8 init

@@ -18,6 +18,13 @@ const resolvedCommand = aliases[command] || command;
 
 // Dynamic command loading
 async function main() {
+  // Handle --version / -V flags
+  if (command === '--version' || command === '-V') {
+    const version = require('../src/commands/version');
+    version.run(args, { pkgRoot: path.join(__dirname, '../') });
+    return;
+  }
+
   // Handle help/no command
   if (!command || command === 'help' || command === '--help' || command === '-h') {
     const help = require('../src/commands/help');
