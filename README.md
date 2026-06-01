@@ -8,6 +8,16 @@ murmur8 is different. Agents Alex, Cass, Nigel, and Codey run a structured, docu
 
 Like a murmuration of starlings, the agents move together — each one responding to what came before and building upon it.
 
+## Upgrading from below v4.7.12
+
+From v4.7.12, `npx murmur8 update` handles everything in one command. If you are on an earlier version, run this once to bootstrap:
+
+```bash
+npm install murmur8@latest
+```
+
+After that, `npx murmur8 update` will keep you up to date automatically.
+
 ## The Workflow
 
 ### Start with a conversation
