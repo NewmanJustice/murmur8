@@ -5,6 +5,11 @@ description: Run the Alex → Cass → Nigel → Codey pipeline using Task tool 
 
 # Implement Feature Skill
 
+## Execution Contract
+
+**You MUST execute ALL steps in sequence through to Step 12 (telemetry + summary).**
+Do not stop after implementation or commit. The pipeline is not complete until Step 12 runs.
+
 ## Paths
 
 | Var | Path |
