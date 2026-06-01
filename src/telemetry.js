@@ -168,7 +168,9 @@ function sendTelemetry(payload, config) {
   if (!url) return Promise.resolve();
 
   return new Promise((resolve) => {
-    const body = JSON.stringify(payload);
+    // Portal expects flat fields — unwrap the { runId, run } envelope if present
+    const data = (payload && payload.run) ? payload.run : payload;
+    const body = JSON.stringify(data);
     const parsedUrl = new URL(url);
     const isHttps = parsedUrl.protocol === 'https:';
     const transport = isHttps ? require('https') : require('http');
@@ -181,7 +183,7 @@ function sendTelemetry(payload, config) {
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(body),
-        'X-API-Key': key || '',
+        'Authorization': `Bearer ${key || ''}`,
       },
     };
 
