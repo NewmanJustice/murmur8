@@ -135,6 +135,8 @@ Updated:
   - REFINE_SKILL.md
   - .claude/commands/implement-feature.md (if exists)
   - .claude/commands/refine-feature.md (if exists)
+  - .github/skills/implement-feature/SKILL.md (if exists)
+  - .github/skills/refine-feature/SKILL.md (if exists)
 
 Preserved:
   - .blueprint/features/
