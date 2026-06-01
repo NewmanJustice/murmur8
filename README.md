@@ -126,7 +126,7 @@ One command updates everything — the npm package and all project files:
 npx murmur8 update
 ```
 
-This runs `npm update murmur8` first, then refreshes `.blueprint/agents/`, `.blueprint/templates/`, `.blueprint/ways_of_working/`, and `.claude/commands/implement-feature.md` from the updated package. Your content in `features/` and `system_specification/` is preserved.
+This runs `npm install murmur8@latest` first, then refreshes `.blueprint/agents/`, `.blueprint/templates/`, `.blueprint/ways_of_working/`, and `.claude/commands/implement-feature.md` from the updated package. Your content in `features/` and `system_specification/` is preserved.
 
 ## Commands
 

@@ -85,7 +85,7 @@ async function update() {
   // Update the npm package first so subsequent file copies use the new version
   console.log('Updating murmur8 npm package...');
   try {
-    execSync('npm update murmur8', { cwd: TARGET_DIR, stdio: 'inherit' });
+    execSync('npm install murmur8@latest', { cwd: TARGET_DIR, stdio: 'inherit' });
     console.log('');
   } catch (err) {
     console.warn('Warning: npm update murmur8 failed — continuing with installed version\n');
