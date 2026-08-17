@@ -5,6 +5,11 @@ description: Run the Alex → Cass → Nigel → Codey pipeline using Task tool 
 
 # Implement Feature Skill
 
+## Execution Contract
+
+**You MUST execute ALL steps in sequence through to Step 12 (telemetry + summary).**
+Do not stop after implementation or commit. The pipeline is not complete until Step 12 runs.
+
 ## Paths
 
 | Var | Path |
@@ -27,95 +32,24 @@ description: Run the Alex → Cass → Nigel → Codey pipeline using Task tool 
 | `{HANDOFF_NIGEL}` | `{FEAT_DIR}/handoff-nigel.md` |
 | `{BACKLOG}` | `.blueprint/features/BACKLOG.md` |
 
-## Multi-Feature Paths (Murmuration Mode)
-
-| Var | Path |
-|-----|------|
-| `{WORKTREE_DIR}` | `.claude/worktrees` |
-| `{WORKTREE_slug}` | `{WORKTREE_DIR}/feat-{slug}` |
-| `{MURM_QUEUE}` | `.claude/murm-queue.json` |
-
 ## Invocation
 
 ```bash
-# Single feature
-/implement-feature                                    # Interactive slug prompt
-/implement-feature "user-auth"                        # New feature
-/implement-feature "user-auth" --interactive          # Force interactive spec creation
-/implement-feature "user-auth" --pause-after=alex|cass|nigel|codey-plan
-/implement-feature "user-auth" --no-commit
-/implement-feature "user-auth" --no-diff-preview      # Skip diff preview before commit
-/implement-feature "user-auth" --no-feedback          # Skip feedback collection
-/implement-feature "user-auth" --no-validate          # Skip pre-flight validation
-/implement-feature "user-auth" --no-history           # Skip history recording
-
-# Multiple features — parallel execution (murmuration mode)
-/implement-feature feat-a feat-b feat-c              # Run 3 features in parallel
-/implement-feature feat-a feat-b --max-concurrency=2 # Limit parallelism
-/implement-feature feat-a feat-b --sequential        # Run one at a time (no worktrees)
+/implement-feature "slug"                              # Single feature
+/implement-feature "slug" --pause-after=alex|cass|nigel|codey-plan
+/implement-feature "slug" --no-commit|--no-feedback|--no-validate|--no-history|--no-diff-preview
+/implement-feature "slug" --interactive                # Force interactive spec creation
+/implement-feature feat-a feat-b feat-c               # Multiple → murmuration mode
 ```
 
-## Pipeline Overview
+## Pipeline Flow
 
 ```
-/implement-feature "slug"
-       │
-       ▼
-┌─────────────────────────────────────────┐
-│ 0. Pre-flight validation (validate.js)  │
-│ 1. Parse args, get slug                 │
-│ 2. Check system spec exists (gate)      │
-│ 3. Show insights preview (insights.js)  │
-│ 4. Initialize queue + history entry     │
-│ 5. Route based on flags/state           │
-└─────────────────────────────────────────┘
-       │
-       ▼
-   ALEX → [feedback] → CASS → [feedback] → NIGEL → [feedback] → CODEY
-       │                                                           │
-       └──────────── Record timing + tokens in history.js ─────────┘
-       │                                                           │
-       └──────────── On failure: retry.js strategy ────────────────┘
-       │
-       ▼
-   DIFF-PREVIEW → AUTO-COMMIT → Record completion + cost in history
+ALEX → [feedback] → CASS → [feedback] → NIGEL(spec) → NIGEL(tests) → [feedback] → CODEY(plan) → CODEY(steps) → DIFF-PREVIEW → COMMIT
 ```
 
-## Multi-Feature Pipeline Overview (Murmuration Mode)
-
-When multiple slugs are provided, the pipeline uses worktree isolation and parallel Task sub-agents:
-
-```
-/implement-feature slug-a slug-b slug-c
-       │
-       ▼
-┌─────────────────────────────────────────────────────┐
-│ M0. Detect multi-feature mode                       │
-│ M1. Pre-flight validation for ALL features          │
-│ M2. Check for file overlap conflicts                │
-│ M3. Create git worktrees (one per feature)          │
-└─────────────────────────────────────────────────────┘
-       │
-       ▼
-┌─────────────────────────────────────────────────────┐
-│ M4. Spawn PARALLEL Task sub-agents                  │
-│                                                     │
-│   Task(slug-a)  ─┐                                  │
-│   Task(slug-b)  ─┼─► Run concurrently               │
-│   Task(slug-c)  ─┘                                  │
-│                                                     │
-│   Each Task runs full pipeline in its worktree:     │
-│   Alex → [Cass] → Nigel → Codey                     │
-└─────────────────────────────────────────────────────┘
-       │
-       ▼
-┌─────────────────────────────────────────────────────┐
-│ M5. Collect results as sub-agents complete          │
-│ M6. Merge successful features to main               │
-│ M7. Report conflicts/failures                       │
-│ M8. Cleanup worktrees                               │
-└─────────────────────────────────────────────────────┘
-```
+On failure at any stage: load `.blueprint/prompts/skill-error-recovery.md`
+Multiple slugs: load `.blueprint/prompts/skill-murm-mode.md`
 
 ## Output Constraints (CRITICAL)
 
@@ -156,304 +90,13 @@ node bin/cli.js validate
 
 ---
 
-## Step M0: Multi-Feature Detection
+## Murmuration Mode (Multi-Feature)
 
 **Trigger:** More than one slug provided in arguments.
 
-Parse all slugs from arguments:
-```
-/implement-feature feat-a feat-b feat-c --no-commit
-→ slugs = ["feat-a", "feat-b", "feat-c"]
-→ flags = { noCommit: true }
-```
+**Load full instructions:** Read `.blueprint/prompts/skill-murm-mode.md` before proceeding.
 
-**Routing:**
-- If `slugs.length > 1`: Enter murmuration mode (Steps M1-M8)
-- If `slugs.length === 1`: Continue to Step 1 (single-feature mode)
-- If `--sequential` flag: Run features one at a time without worktrees
-
----
-
-## Step M1: Multi-Feature Pre-flight Validation
-
-For EACH slug, verify:
-1. Feature spec exists at `.blueprint/features/feature_{slug}/FEATURE_SPEC.md`
-2. Spec has required sections (Intent, Scope, Actors)
-
-**Display validation table:**
-```
-Pre-flight Validation
-=====================
-
-✓ feat-a: Spec complete, 3 stories
-✓ feat-b: Spec complete, 2 stories
-✗ feat-c: Missing FEATURE_SPEC.md
-```
-
-**On any failure:**
-- Show which features are not ready
-- Suggest: `/implement-feature "feat-c" --pause-after=alex` to create spec
-- Ask: "Continue with ready features only?" or "Abort"
-
----
-
-## Step M2: Conflict Detection
-
-Scan implementation plans (if they exist) for file overlap:
-
-```bash
-# For each feature with IMPLEMENTATION_PLAN.md, extract files to modify
-grep -h "src/\|lib/\|bin/" .blueprint/features/feature_*/IMPLEMENTATION_PLAN.md
-```
-
-**Display if conflicts found:**
-```
-Conflict Analysis
-=================
-
-⚠ File overlap detected:
-  • src/utils.js: feat-a, feat-b both modify
-
-Recommendation: Run feat-a and feat-b sequentially, or resolve manually.
-```
-
-**On conflict:** Ask user to confirm or adjust feature list.
-
----
-
-## Step M3: Create Worktrees
-
-For each validated slug, create an isolated git worktree:
-
-```bash
-# Ensure clean working tree first
-git status --porcelain
-
-# Create worktrees (one per feature)
-git worktree add .claude/worktrees/feat-{slug-a} -b feature/{slug-a}
-git worktree add .claude/worktrees/feat-{slug-b} -b feature/{slug-b}
-git worktree add .claude/worktrees/feat-{slug-c} -b feature/{slug-c}
-```
-
-**Announce:**
-```
-Creating worktrees...
-  ✓ .claude/worktrees/feat-a → branch feature/feat-a
-  ✓ .claude/worktrees/feat-b → branch feature/feat-b
-  ✓ .claude/worktrees/feat-c → branch feature/feat-c
-```
-
----
-
-## Step M4: Spawn Parallel Feature Pipelines
-
-**CRITICAL:** Use multiple Task tool calls IN THE SAME MESSAGE to run concurrently.
-
-For each feature, spawn a Task sub-agent that runs the COMPLETE pipeline in its worktree. All Task calls must be made in a single assistant response to enable parallel execution.
-
-### Task Prompt Template (for each slug):
-
-Use the Task tool with `subagent_type="general-purpose"`:
-
-```
-You are running the implement-feature pipeline for "{slug}".
-
-## Working Directory
-All file operations must use this worktree: .claude/worktrees/feat-{slug}
-
-## Task
-Run the complete feature pipeline in the worktree:
-
-1. **Read Feature Spec**
-   - Path: .claude/worktrees/feat-{slug}/.blueprint/features/feature_{slug}/FEATURE_SPEC.md
-
-2. **Classify Feature**
-   - Technical (refactoring, optimization, infrastructure): Skip to step 4
-   - User-facing: Continue to step 3
-
-3. **Cass** (if user-facing) — Write user stories
-   - Read feature spec for context
-   - Write story-*.md files to feature directory
-   - Write handoff-cass.md
-
-4. **Nigel** — Create tests
-   - Read handoff (from Alex or Cass)
-   - Write: .claude/worktrees/feat-{slug}/test/artifacts/feature_{slug}/test-spec.md
-   - Write: .claude/worktrees/feat-{slug}/test/feature_{slug}.test.js
-   - Write: handoff-nigel.md
-
-5. **Codey Plan** — Create implementation plan
-   - Read handoff-nigel.md
-   - Write: IMPLEMENTATION_PLAN.md
-
-6. **Codey Implement** — Write code to pass tests
-   - Follow the implementation plan
-   - Run tests: node --test test/feature_{slug}.test.js
-   - Iterate until tests pass
-
-## Rules
-- Work ONLY within .claude/worktrees/feat-{slug}
-- Do NOT commit changes (will be merged later)
-- Do NOT modify files outside the worktree
-- Run tests from within the worktree directory
-
-## Completion
-When done, report status as:
-PIPELINE_RESULT: {"slug": "{slug}", "status": "success|failed", "tests": "X/Y passing", "files": ["list of created/modified files"], "error": "if failed, why"}
-```
-
-**Example: 3 features in parallel**
-
-Make THREE Task tool calls in a single message:
-- Task 1: Pipeline for `feat-a` in `.claude/worktrees/feat-a`
-- Task 2: Pipeline for `feat-b` in `.claude/worktrees/feat-b`
-- Task 3: Pipeline for `feat-c` in `.claude/worktrees/feat-c`
-
-The Task tool executes these concurrently.
-
----
-
-## Step M5: Collect Results
-
-As each Task sub-agent completes, parse its PIPELINE_RESULT:
-
-```javascript
-results = [
-  { slug: "feat-a", status: "success", tests: "5/5", files: ["src/a.js"] },
-  { slug: "feat-b", status: "success", tests: "3/3", files: ["src/b.js"] },
-  { slug: "feat-c", status: "failed", error: "Tests failed: 2/4 passing" }
-]
-```
-
-Wait for ALL sub-agents to complete before proceeding.
-
----
-
-## Step M5.5: Diff Preview & Commit Worktree Changes
-
-For each successful pipeline, show diff preview (unless `--no-diff-preview`) then commit the changes in its worktree.
-
-**Diff Preview per Worktree:**
-- Show changes for each worktree before committing
-- User can approve/abort each worktree individually
-- If user aborts a worktree, mark it as `user-aborted` (not failed)
-- Continue to next worktree regardless
-
-**IMPORTANT:** Use absolute paths to avoid context confusion.
-
-```bash
-# For each slug with status: "success"
-cd /absolute/path/to/.claude/worktrees/feat-{slug}
-git add -A
-git commit -m "feat({slug}): {brief summary from PIPELINE_RESULT}
-
-{tests} passing, {file count} files changed.
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
-```
-
-**Example with 3 features:**
-```bash
-# Commit each worktree (can run in parallel)
-cd /workspaces/project/.claude/worktrees/feat-a && git add -A && git commit -m "..."
-cd /workspaces/project/.claude/worktrees/feat-b && git add -A && git commit -m "..."
-cd /workspaces/project/.claude/worktrees/feat-c && git add -A && git commit -m "..."
-```
-
-**Skip failed pipelines** — their worktrees are preserved uncommitted for debugging.
-
-**Return to main repo** before proceeding to merge:
-```bash
-cd /workspaces/project  # Back to main repo root
-```
-
----
-
-## Step M6: Merge Successful Features
-
-For each feature with `status: "success"`:
-
-```bash
-# From main repository (not worktree)
-git checkout main
-
-# Merge the feature branch
-git merge feature/{slug} --no-ff -m "feat({slug}): Add {slug} feature
-
-Implemented via murmuration pipeline.
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
-```
-
-**Handle merge conflicts:**
-- Do NOT force resolve or abort
-- Record: `{ slug, status: "conflict", branch: "feature/{slug}" }`
-- Preserve worktree for manual resolution
-- Continue merging other features
-
-### Remove Merged Features from Backlog
-
-After all merges complete, update `{BACKLOG}` to remove successfully merged features:
-
-1. Read `.blueprint/features/BACKLOG.md`
-2. For each merged slug, remove its row from the table
-3. Remove any corresponding Details sections
-4. Write the updated backlog
-5. Commit the backlog update:
-   ```bash
-   git add .blueprint/features/BACKLOG.md
-   git commit -m "chore: remove completed features from backlog
-
-   Removed: {list of merged slugs}
-
-   Co-Authored-By: Claude <noreply@anthropic.com>"
-   ```
-
-**If backlog doesn't exist:** Skip silently.
-
----
-
-## Step M7: Report Summary
-
-**Display murmuration summary:**
-```
---- Murmuration Complete ---
-
-## Landed (merged to main)
-  ✓ feat-a: 5 tests passing, 3 files changed
-  ✓ feat-b: 3 tests passing, 2 files changed
-
-## Turbulence (merge conflicts)
-  ⚠ (none)
-
-## Lost Formation (pipeline failed)
-  ✗ feat-c: Tests failed (2/4 passing)
-    Worktree preserved: .claude/worktrees/feat-c
-    To debug: cd .claude/worktrees/feat-c && node --test
-
-## Next Steps
-- Run `node --test` to verify all merged tests pass
-- Resolve any conflicts manually, then: git worktree remove .claude/worktrees/feat-X
-```
-
----
-
-## Step M8: Cleanup Worktrees
-
-**For successfully merged features:**
-```bash
-git worktree remove .claude/worktrees/feat-{slug} --force
-git branch -d feature/{slug}  # Safe delete (already merged)
-```
-
-**Preserve worktrees for:**
-- Failed pipelines (for debugging)
-- Merge conflicts (for manual resolution)
-
-**Final cleanup check:**
-```bash
-git worktree list  # Verify cleanup
-```
+**Summary:** Creates git worktrees for isolation, spawns parallel Task sub-agents (one per feature), merges successful features, preserves failures for debugging.
 
 ---
 
@@ -472,34 +115,9 @@ Check `{SYS_SPEC}` exists. If not: run Alex to create it, then **stop for review
 
 **Module:** `src/interactive.js`
 
-The pipeline automatically enters interactive mode when:
-1. `--interactive` flag is explicitly passed
-2. System spec (`{SYS_SPEC}`) is missing - creates system spec interactively
-3. Feature spec (`{FEAT_SPEC}`) is missing - creates feature spec interactively
-
-**Interactive Session Flow:**
-```
-idle → gathering → questioning → drafting → finalizing
-```
-
-**Available Commands During Session:**
-| Command | Action |
-|---------|--------|
-| `/approve` or `yes` | Mark section complete, proceed to next |
-| `/change <feedback>` | Revise current section with feedback |
-| `/skip` | Mark section TBD, proceed to next |
-| `/restart` | Discard draft, restart current section |
-| `/abort` | Exit without writing spec |
-| `/done` | Finalize spec (if min sections complete) |
-
-**Minimum Required Sections:**
-- Feature spec: Intent, Scope, Actors
-- System spec: Purpose, Actors, Boundaries
-
-**On Interactive Completion:**
-- Writes spec to appropriate path
-- Generates `handoff-alex.md` with session metrics
-- Records `mode: "interactive"` in history entry
+Enters interactive mode when: `--interactive` flag is set, or system/feature spec is missing.
+Commands: `/approve`, `/change <feedback>`, `/skip`, `/restart`, `/abort`, `/done`
+Minimum sections: Feature spec needs Intent, Scope, Actors. System spec needs Purpose, Actors, Boundaries.
 
 ### Step 3.5: Insights Preview (NEW)
 
@@ -525,19 +143,7 @@ If no history exists, skip this step silently.
 ### Step 5: Initialize
 Create/read `{QUEUE}`. Ensure dirs exist: `mkdir -p {FEAT_DIR} {TEST_DIR}`
 
-**History Integration (NEW):**
-
-Unless `--no-history` flag is set, start a history entry:
-
-```javascript
-// Conceptual - orchestrator tracks this in memory
-historyEntry = {
-  slug: "{slug}",
-  startedAt: new Date().toISOString(),
-  stages: {},
-  feedback: {}
-}
-```
+Unless `--no-history`, note the pipeline start time (ISO 8601 UTC) in your working context as `PIPELINE_START`.
 
 ---
 
@@ -545,7 +151,7 @@ historyEntry = {
 
 **Announce:** `} Alex — creating feature spec`
 
-**History:** Record `stages.alex.startedAt` before spawning.
+**History:** Note `ALEX_START` (ISO 8601 UTC) before spawning.
 
 **Runtime prompt:** `.blueprint/prompts/alex-runtime.md`
 
@@ -599,13 +205,11 @@ Create a feature specification for "{slug}" that translates system intent into a
 ## Completion
 Brief summary (5 bullets max): intent, key behaviours, scope, story themes, tensions
 
-## Reference
-For detailed guidance, see: .blueprint/agents/AGENT_SPECIFICATION_ALEX.md
 ```
 
 **On completion:**
 1. Verify `{FEAT_SPEC}` and `{FEAT_DIR}/handoff-alex.md` exist
-2. **Record history:** `stages.alex = { completedAt, durationMs, status: "success" }`
+2. Note `ALEX_END` and compute `ALEX_DURATION_MS`
 3. Update queue: move feature to `cassQueue`
 4. If `--pause-after=alex`: Show output path, ask user to continue
 
@@ -613,17 +217,26 @@ For detailed guidance, see: .blueprint/agents/AGENT_SPECIFICATION_ALEX.md
 
 ---
 
-## Step 6.5: Cass Feedback on Alex (NEW)
+## Step 6.5: Feedback — Cass Reviews Alex
 
 **Module:** `src/feedback.js`
 
-Unless `--no-feedback` flag is set, collect feedback before Cass writes stories:
+Unless `--no-feedback` flag is set, spawn a micro-Task for quality assessment:
 
-**Prompt addition to Cass:**
+Use the Task tool with `subagent_type="general-purpose"`:
+
+**Prompt:**
 ```
-FEEDBACK FIRST: Rate Alex's spec 1-5, list issues (e.g., unclear-scope), recommend proceed|pause|revise.
-Format: FEEDBACK: {"rating":N,"issues":["..."],"rec":"proceed|pause|revise"}
-Then continue with your task.
+You are Cass, reviewing Alex's feature specification for "{slug}".
+
+Read: {FEAT_DIR}/FEATURE_SPEC.md
+
+Rate the spec 1-5 on: clarity of intent, scope boundaries, testability of behaviours.
+List any issues (e.g., unclear-scope, missing-actors, ambiguous-rules).
+Recommend: proceed | pause | revise.
+
+Output ONLY this line:
+FEEDBACK: {"rating":N,"issues":["..."],"rec":"proceed|pause|revise"}
 ```
 
 **Quality Gate Check:**
@@ -639,7 +252,7 @@ Then continue with your task.
 
 **Announce:** ` } Cass — writing user stories`
 
-**History:** Record `stages.cass.startedAt` before spawning.
+**History:** Note `CASS_START` (ISO 8601 UTC) before spawning.
 
 **Runtime prompt:** `.blueprint/prompts/cass-runtime.md`
 
@@ -654,9 +267,8 @@ You are Cass, the Story Writer Agent.
 Create user stories for feature "{slug}" with explicit, testable acceptance criteria.
 
 ## Inputs (read these files)
-- Handoff Summary: {FEAT_DIR}/handoff-alex.md (read FIRST for quick context)
-- Feature Spec: {FEAT_DIR}/FEATURE_SPEC.md (full details if needed)
-- System Spec: .blueprint/system_specification/SYSTEM_SPEC.md
+- Handoff Summary: {FEAT_DIR}/handoff-alex.md
+- Feature Spec: {FEAT_DIR}/FEATURE_SPEC.md
 
 ## Outputs (write these files)
 1. Create one markdown file per user story in {FEAT_DIR}/:
@@ -688,27 +300,23 @@ Each story must include:
 ```
 
 ## Rules
-- Read Alex's handoff summary FIRST for quick orientation
 - Write ONE story file at a time, then move to next
 - Write handoff summary LAST after all stories complete
-- Keep each story focused - split large stories into multiple files
+- Keep each story focused — split large stories into multiple files
 - Make routing explicit (Previous, Continue, conditional paths)
-- Reference feature spec by path for shared context
 - Do not guess policy detail without flagging assumptions
-- Avoid implicit behaviour - all routes must be explicit
+- Avoid implicit behaviour — all routes must be explicit
 - Handoff summary must be under 30 lines
 
 ## Completion
 Brief summary: story count, filenames, behaviours covered (5 bullets max)
 
-## Reference
-For detailed guidance, see: .blueprint/agents/AGENT_BA_CASS.md
 ```
 
 **On completion:**
 1. Verify at least one `story-*.md` exists in `{FEAT_DIR}`
 2. Verify `{FEAT_DIR}/handoff-cass.md` exists
-2. **Record history:** `stages.cass = { completedAt, durationMs, status: "success" }`
+2. Note `CASS_END` and compute `CASS_DURATION_MS`
 3. Update queue: move feature to `nigelQueue`
 4. If `--pause-after=cass`: Show story paths, ask user to continue
 
@@ -716,17 +324,24 @@ For detailed guidance, see: .blueprint/agents/AGENT_BA_CASS.md
 
 ---
 
-## Step 7.5: Nigel Feedback on Cass (NEW)
+## Step 7.5: Feedback — Nigel Reviews Cass
 
 **Module:** `src/feedback.js`
 
-Unless `--no-feedback` flag is set:
+Unless `--no-feedback` flag is set, spawn a micro-Task:
 
-**Prompt addition to Nigel:**
+**Prompt:**
 ```
-FEEDBACK FIRST: Rate Cass's stories 1-5, list issues (e.g., ambiguous-ac), recommend proceed|pause|revise.
-Format: FEEDBACK: {"rating":N,"issues":["..."],"rec":"proceed|pause|revise"}
-Then continue with your task.
+You are Nigel, reviewing Cass's user stories for "{slug}".
+
+Read: {FEAT_DIR}/story-*.md
+
+Rate the stories 1-5 on: testability of ACs, explicitness of routes, coverage of edge cases.
+List any issues (e.g., ambiguous-ac, implicit-routing, missing-edge-case).
+Recommend: proceed | pause | revise.
+
+Output ONLY this line:
+FEEDBACK: {"rating":N,"issues":["..."],"rec":"proceed|pause|revise"}
 ```
 
 **Quality Gate Check:** Same as Step 6.5
@@ -737,11 +352,13 @@ Then continue with your task.
 
 ## Step 8: Spawn Nigel Agent
 
-**Announce:** `  } Nigel — building tests`
+**Announce:** `  } Nigel — building test spec`
 
-**History:** Record `stages.nigel.startedAt` before spawning.
+**History:** Note `NIGEL_SPEC_START` (ISO 8601 UTC) before spawning.
 
 **Runtime prompt:** `.blueprint/prompts/nigel-runtime.md`
+
+### Step 8a: Nigel — Test Spec & Handoff
 
 Use the Task tool with `subagent_type="general-purpose"`:
 
@@ -751,29 +368,22 @@ You are Nigel, the Tester Agent.
 
 ## Task
 
-Create tests for feature "{slug}" that expose ambiguities and provide a stable contract for implementation.
+Create a test specification for feature "{slug}" that maps acceptance criteria to test cases and provides a stable contract for implementation.
 
 ## Inputs (read these files)
 - Handoff Summary: {FEAT_DIR}/handoff-cass.md (read FIRST for quick context)
-- Stories: {FEAT_DIR}/story-*.md (full details)
-- Feature Spec: {FEAT_DIR}/FEATURE_SPEC.md (if additional context needed)
+- Stories: {FEAT_DIR}/story-*.md
 
 ## Outputs (write these files IN ORDER)
 
-Step 1: Write {TEST_DIR}/test-spec.md containing:
-- Brief understanding (5-10 lines)
-- AC to Test ID mapping table (compact)
-- Key assumptions (bullet list)
+1. Write {TEST_DIR}/test-spec.md containing:
+   - Brief understanding (5-10 lines)
+   - AC to Test ID mapping table (compact)
+   - Key assumptions (bullet list)
 
-Step 2: Write {TEST_FILE} containing:
-- Executable tests (Jest or Node test runner)
-- One describe block per story
-- One test per acceptance criterion
-
-Step 3: Write handoff summary to: {FEAT_DIR}/handoff-nigel.md
+2. Write handoff summary to: {FEAT_DIR}/handoff-nigel.md
 
 ## Handoff Summary Format
-```markdown
 ## Handoff Summary
 **For:** Codey
 **Feature:** {slug}
@@ -781,37 +391,81 @@ Step 3: Write handoff summary to: {FEAT_DIR}/handoff-nigel.md
 ### Key Decisions
 - (1-5 bullets: test approach, mocking strategy, coverage focus)
 
-### Files Created
-- {TEST_DIR}/test-spec.md
-- {TEST_FILE}
+### Files to Create
+- {TEST_DIR}/test-spec.md (written)
+- {TEST_FILE} (next step)
+
+### Test Structure
+- (describe block names and test counts per story)
 
 ### Open Questions
 - (List any unresolved questions, or "None")
 
 ### Critical Context
 (Brief context Codey needs to implement effectively)
-```
 
 ## Rules
-- Read Cass's handoff summary FIRST for quick orientation
-- Write test-spec.md FIRST, then write test file, then handoff summary LAST
+- Write test-spec.md FIRST, then handoff summary
 - Keep test-spec.md under 100 lines using table format
-- Tests should be self-documenting with minimal comments
-- Reference story files by path in test descriptions
-- Make failure states meaningful
 - Focus on externally observable behaviour
+- Label assumptions explicitly: `ASSUMPTION: [statement]`
 - Handoff summary must be under 30 lines
 
 ## Completion
-Brief summary: test count, AC coverage %, assumptions (5 bullets max)
-
-## Reference
-For detailed guidance, see: .blueprint/agents/AGENT_TESTER_NIGEL.md
+Brief summary: test case count planned, AC coverage %, assumptions (5 bullets max)
 ```
 
 **On completion:**
-1. Verify `{TEST_SPEC}`, `{TEST_FILE}`, and `{FEAT_DIR}/handoff-nigel.md` exist
-2. **Record history:** `stages.nigel = { completedAt, durationMs, status: "success" }`
+1. Verify `{TEST_SPEC}` and `{FEAT_DIR}/handoff-nigel.md` exist
+2. Note `NIGEL_SPEC_END` and compute `NIGEL_SPEC_DURATION_MS`
+
+**On failure:** See [Error Handling with Retry](#error-handling-with-smart-retry)
+
+---
+
+### Step 8b: Nigel — Executable Tests
+
+**Announce:** `  } Nigel — writing executable tests`
+
+**History:** Note `NIGEL_TESTS_START` (ISO 8601 UTC) before spawning.
+
+Use the Task tool with `subagent_type="general-purpose"`:
+
+**Prompt:**
+```
+You are Nigel, the Tester Agent.
+
+## Task
+
+Write executable tests for feature "{slug}" based on the test specification.
+
+## Inputs (read these files)
+- Test Spec: {TEST_DIR}/test-spec.md
+- Stories: {FEAT_DIR}/story-*.md (for AC detail)
+
+## Outputs
+
+Write {TEST_FILE} containing:
+- Executable tests using the project's test runner (see `.claude/stack-config.json`)
+- One describe block per story
+- One test per acceptance criterion
+- If more than 8 test cases: split into {TEST_FILE} and test/feature_{slug}-edge.test.js
+
+## Rules
+- Tests should be self-documenting with minimal comments
+- Reference story files by path in test descriptions
+- Make failure states meaningful with expected error messages
+- Focus on externally observable behaviour
+- Deterministic tests (avoid flaky patterns)
+- Cover boundaries: min/max, empty/null, invalid formats
+
+## Completion
+Brief summary: test count, file(s) written, any tests deferred
+```
+
+**On completion:**
+1. Verify `{TEST_FILE}` exists
+2. Note `NIGEL_TESTS_END` and compute `NIGEL_TESTS_DURATION_MS`
 3. Update queue: move feature to `codeyQueue`
 4. If `--pause-after=nigel`: Show test paths, ask user to continue
 
@@ -819,17 +473,25 @@ For detailed guidance, see: .blueprint/agents/AGENT_TESTER_NIGEL.md
 
 ---
 
-## Step 8.5: Codey Feedback on Nigel (NEW)
+## Step 8.5: Feedback — Codey Reviews Nigel
 
 **Module:** `src/feedback.js`
 
-Unless `--no-feedback` flag is set:
+Unless `--no-feedback` flag is set, spawn a micro-Task:
 
-**Prompt addition to Codey (Plan phase):**
+**Prompt:**
 ```
-FEEDBACK FIRST: Rate Nigel's tests 1-5, list issues (e.g., over-mocked), recommend proceed|pause|revise.
-Format: FEEDBACK: {"rating":N,"issues":["..."],"rec":"proceed|pause|revise"}
-Then continue with your task.
+You are Codey, reviewing Nigel's tests for "{slug}".
+
+Read: {TEST_FILE}
+Read: {TEST_DIR}/test-spec.md
+
+Rate the tests 1-5 on: implementability, clarity of assertions, appropriate mocking level.
+List any issues (e.g., over-mocked, untestable-assertion, missing-setup).
+Recommend: proceed | pause | revise.
+
+Output ONLY this line:
+FEEDBACK: {"rating":N,"issues":["..."],"rec":"proceed|pause|revise"}
 ```
 
 **Quality Gate Check:** Same as Step 6.5
@@ -842,7 +504,7 @@ Then continue with your task.
 
 **Announce:** `   } Codey — drafting implementation plan`
 
-**History:** Record `stages.codeyPlan.startedAt` before spawning.
+**History:** Note `CODEY_PLAN_START` (ISO 8601 UTC) before spawning.
 
 **Runtime prompt:** `.blueprint/prompts/codey-plan-runtime.md`
 
@@ -857,54 +519,80 @@ You are Codey, the Developer Agent.
 Create an implementation plan for feature "{slug}". Do NOT implement yet - planning only.
 
 ## Inputs (read these files)
-- Handoff Summary: {FEAT_DIR}/handoff-nigel.md (read FIRST for quick context)
+- Handoff Summary: {FEAT_DIR}/handoff-nigel.md
 - Test Spec: {TEST_DIR}/test-spec.md
 - Tests: {TEST_FILE}
-- Feature Spec: {FEAT_DIR}/FEATURE_SPEC.md (if additional context needed)
-- Stories: {FEAT_DIR}/story-*.md (if additional context needed)
 
 ## Outputs (write this file)
 Write implementation plan to: {FEAT_DIR}/IMPLEMENTATION_PLAN.md
 
-Plan structure (aim for under 80 lines total):
-- Summary (2-3 sentences)
-- Files to Create/Modify (table: path | action | purpose)
-- Implementation Steps (numbered, max 10 steps)
-- Risks/Questions (bullet list, only if non-obvious)
+Plan structure (aim for under 60 lines total):
+
+```markdown
+## Summary
+(2-3 sentences: what this implements and the approach)
+
+## Steps
+1. [{file_path}] {CREATE|MODIFY} — {purpose} | Tests: {T-IDs}
+2. [{file_path}] {CREATE|MODIFY} — {purpose} | Tests: {T-IDs}
+3. [{file_path}] {CREATE|MODIFY} — {purpose} | Tests: {T-IDs}
+...
+
+## Risks
+- (only if non-obvious, otherwise omit section)
+```
+
+**CRITICAL FORMAT:** Each step MUST be exactly one line matching:
+`N. [path/to/file.ext] ACTION — description | Tests: T-X.Y, T-X.Z`
+
+This format is machine-parsed by the orchestrator. Do not deviate.
 
 ## Rules
-- Read Nigel's handoff summary FIRST for quick orientation
 - Do NOT write implementation code in this phase
-- Keep plan concise and actionable
+- Keep plan concise — one line per step, max 10 steps
 - Order steps to make tests pass incrementally
-- Identify which tests each step addresses
+- Each step targets a single file and specific test IDs
 - Prefer editing existing files over creating new ones
 
 ## Completion
 Brief summary: files planned, step count, identified risks
 
-## Reference
-For detailed guidance, see: .blueprint/agents/AGENT_DEVELOPER_CODEY.md
 ```
 
 **On completion:**
 1. Verify `{PLAN}` exists
-2. **Record history:** `stages.codeyPlan = { completedAt, durationMs, status: "success" }`
+2. Note `CODEY_PLAN_END` and compute `CODEY_PLAN_DURATION_MS`
 3. If `--pause-after=codey-plan`: Show plan path, ask user to continue
 
 **On failure:** See [Error Handling with Retry](#error-handling-with-smart-retry)
 
 ---
 
-## Step 10: Spawn Codey Agent (Implement)
+## Step 10: Spawn Codey Agent (Implement) — Orchestrator-Driven Loop
 
 **Announce:** `    } Codey — implementing feature`
 
-**History:** Record `stages.codeyImplement.startedAt` before spawning.
+**History:** Note `CODEY_IMPL_START` (ISO 8601 UTC) before spawning.
 
 **Runtime prompt:** `.blueprint/prompts/codey-implement-runtime.md`
 
-Use the Task tool with `subagent_type="general-purpose"`:
+### Orchestrator Reads the Plan
+
+Before spawning Codey, the orchestrator reads `{PLAN}` and extracts the numbered steps. Each step becomes a separate, atomic Task call.
+
+**Parsing:** Each step line matches: `N. [file_path] ACTION — description | Tests: T-IDs`
+Extract: step number, file path, action (CREATE/MODIFY), description, and test IDs.
+
+**Process:**
+1. Read `{FEAT_DIR}/IMPLEMENTATION_PLAN.md`
+2. Parse lines matching `^\d+\. \[` under `## Steps`
+3. For each parsed step, spawn a Codey Task with the step details
+4. After each step, run the mapped tests to verify
+5. If a step fails after retry, stop and report
+
+### Per-Step Task Prompt Template
+
+For each implementation step N, use the Task tool with `subagent_type="general-purpose"`:
 
 **Prompt:**
 ```
@@ -912,43 +600,56 @@ You are Codey, the Developer Agent.
 
 ## Task
 
-Implement feature "{slug}" according to the plan. Work incrementally, making tests pass one group at a time.
+Implement step {N} of the plan for feature "{slug}":
 
-## Inputs (read these files)
-- Handoff Summary: {FEAT_DIR}/handoff-nigel.md (read FIRST for quick context)
-- Implementation Plan: {FEAT_DIR}/IMPLEMENTATION_PLAN.md
+> {paste the exact step text from IMPLEMENTATION_PLAN.md}
+
+## Context
 - Tests: {TEST_FILE}
+- Plan: {FEAT_DIR}/IMPLEMENTATION_PLAN.md (for reference only)
+- This step should make these tests pass: {test names from plan, if mapped}
 
-## Process (INCREMENTAL - one file at a time)
-1. Read Nigel's handoff summary for orientation
-2. Run tests first: node --test {TEST_FILE}
-3. For each failing test group:
-   a. Identify the minimal code needed
-   b. Write or edit ONE file
-   c. Run tests again
-   d. Repeat until group passes
-3. Move to next test group
+## Process
+1. Write or edit the file(s) specified in this step
+2. Run tests: node --test {TEST_FILE}
+3. If tests for this step fail, fix and re-run
 
 ## Rules
 - Write ONE source file at a time
-- Run tests after each file write
 - Keep functions small (under 30 lines)
 - Code should be self-documenting, minimal comments
 - Do NOT commit changes
 - Do NOT modify test assertions unless they contain bugs
+- Only implement what this step requires — nothing more
 
 ## Completion
-Brief summary: files changed (list), test status (X/Y passing), blockers if any
-
-## Reference
-For detailed guidance, see: .blueprint/agents/AGENT_DEVELOPER_CODEY.md
+Report: file(s) changed, test status (X/Y passing), any blockers
 ```
 
-**On completion:**
-1. Run `npm test` to verify
-2. **Record history:** `stages.codeyImplement = { completedAt, durationMs, status: "success" }`
+### Orchestrator Loop Logic
+
+```
+for each step in IMPLEMENTATION_PLAN.steps:
+  announce: "    } Codey — step {N}: {step summary}"
+  spawn Task(step prompt)
+  if success:
+    record stages.codeyStep{N} timing
+    continue
+  if failure:
+    attempt retry (see Error Handling)
+    if still fails: stop, report partial progress
+```
+
+**On all steps complete:**
+1. Run full test suite: `node --test {TEST_FILE}`
+2. Note `CODEY_IMPL_END`, compute `CODEY_IMPL_DURATION_MS`, and note `STEPS_COMPLETED`
 3. Update queue: move feature to `completed`
 4. Proceed to auto-commit (unless `--no-commit`)
+
+**On partial failure:**
+1. Record which steps completed and which failed
+2. Note partial completion: `STEPS_COMPLETED=M`, `TOTAL_STEPS=N`, `FAILED_AT_STEP=step`
+3. Report to user with option to continue manually
 
 **On failure:** See [Error Handling with Retry](#error-handling-with-smart-retry)
 
@@ -958,43 +659,10 @@ For detailed guidance, see: .blueprint/agents/AGENT_DEVELOPER_CODEY.md
 
 **Module:** `src/diff-preview.js`
 
-Before committing, show the user a preview of all changes unless skipped.
+**Skip if:** `--no-commit`, `--no-diff-preview`, `--yes`, or no changes detected.
 
-**Skip conditions** (any of these skips the preview):
-- `--no-commit` flag is set
-- `--no-diff-preview` flag is set
-- `--yes` flag is set (non-interactive mode)
-- No changes detected
-
-**Display:**
-```
-Changes to commit for feature_{slug}:
-
-Added (3 files):
-  + .blueprint/features/feature_{slug}/FEATURE_SPEC.md
-  + test/feature_{slug}.test.js
-  + src/feature.js
-
-Modified (1 file):
-  ~ src/index.js
-
-Deleted (0 files):
-  (none)
-
-Total: 4 files changed
-
-[c]ommit / [a]bort / [d]iff (show full diff)?
-```
-
-**User choices:**
-- `c` or `commit`: Proceed to auto-commit
-- `a` or `abort`: Exit pipeline cleanly (exit code 0, not a failure)
-- `d` or `diff`: Show full `git diff` output, then re-prompt
-
-**On abort:**
-- Record in history: `status: "user-aborted"`, `reason: "User aborted at diff preview"`
-- Do NOT record as failure
-- Clean exit
+Show added/modified/deleted file summary. User chooses: `[c]ommit` / `[a]bort` / `[d]iff`.
+On abort: record `status: "user-aborted"` in history, clean exit (not a failure).
 
 ---
 
@@ -1023,31 +691,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 ### Remove from Backlog
 
-After successful commit, remove the completed feature from `{BACKLOG}`:
-
-1. Read `.blueprint/features/BACKLOG.md`
-2. Find the row containing `| ... | {slug} |`
-3. Remove that row from the table
-4. If a Details section exists for `### {slug}`, remove it too
-5. Write the updated backlog
-
-**Example removal:**
-```markdown
-# Before
-| Status | P | E | Slug | Description |
-|--------|---|---|------|-------------|
-| ⏳ | P1 | M | user-auth | Login flow |
-| ⏳ | P2 | S | theme-adoption | Use theme.js |
-
-# After (user-auth completed)
-| Status | P | E | Slug | Description |
-|--------|---|---|------|-------------|
-| ⏳ | P2 | S | theme-adoption | Use theme.js |
-```
-
-**If backlog doesn't exist:** Skip silently (not all projects use backlogs).
-
-**Include in commit:** Stage the updated backlog file with the feature commit.
+After commit, remove the slug's row from `{BACKLOG}` (if it exists). Stage with the commit.
 
 ---
 
@@ -1055,251 +699,95 @@ After successful commit, remove the completed feature from `{BACKLOG}`:
 
 **Modules:** `src/history.js`, `src/cost.js`
 
-Unless `--no-history` flag is set, finalize the history entry:
+Unless `--no-history` flag is set, build the history entry JSON from the timestamps noted during the run and write it via the CLI:
 
-```javascript
-historyEntry.status = "success";
-historyEntry.completedAt = new Date().toISOString();
-historyEntry.totalDurationMs = completedAt - startedAt;
-historyEntry.commitHash = "{hash}";
-historyEntry.totalTokens = { input: N, output: M };
-historyEntry.totalCost = X.XXX;
-// Save to .claude/pipeline-history.json
-```
-
-**Display summary:**
-```
-} Alex — creating feature spec       ✓
- } Cass — writing user stories       ✓
-  } Nigel — building tests           ✓
-   } Codey — drafting plan           ✓
-    } Codey — implementing feature   ✓
-
-## Landed
-- feature_{slug}
-  - Stories: N
-  - Tests: N (all passing)
-  - Duration: X min (avg: Y min)
-  - Commit: {hash}
-
-## Feedback Summary
-- Alex spec: rated 4/5 by Cass
-- Cass stories: rated 5/5 by Nigel
-- Nigel tests: rated 4/5 by Codey
-
-## Cost Summary
-STAGE            INPUT     OUTPUT    COST
-alex             2,450     1,230     $0.014
-cass             3,100     1,850     $0.019
-nigel            2,800     2,100     $0.018
-codey-plan       1,500       890     $0.009
-codey-impl       4,200     3,500     $0.028
-─────────────────────────────────────────
-TOTAL           14,050     9,570     $0.088
-
-## Next Action
-Pipeline complete. Run `npm test` to verify or `/implement-feature` for next feature.
-```
-
----
-
-## Error Handling with Smart Retry (ENHANCED)
-
-**Modules:** `src/retry.js`, `src/feedback.js`, `src/insights.js`
-
-After each agent spawn, if the Task tool returns an error or output validation fails:
-
-### 1. Analyze Failure Context
-
-**Check feedback chain for clues:**
-```
-If Cass flagged "unclear-scope" on Alex's spec
-  → Likely root cause identified
-  → Recommend: "add-context" strategy
-```
-
-**Check history for patterns:**
 ```bash
-node bin/cli.js insights --failures --json
-```
-- If this stage has >20% failure rate, suggest alternative strategy
-- If this specific issue pattern correlates with failures, mention it
-
-### 2. Get Retry Strategy Recommendation
-
-**Module:** `src/retry.js`
-
-```
-Strategy recommendation based on:
-- Stage: {stage}
-- Attempt: {attemptNumber}
-- Failure rate: {rate}%
-- Feedback issues: {issues}
-
-Recommended: {strategy}
-```
-
-**Available strategies:**
-| Strategy | Effect |
-|----------|--------|
-| `retry` | Simple retry with same prompt |
-| `simplify-prompt` | Reduce scope: "Focus only on core happy path" |
-| `add-context` | Include more output from previous stages |
-| `reduce-stories` | Ask for fewer, more focused stories |
-| `simplify-tests` | Ask for fewer, essential tests only |
-| `incremental` | Implement one test at a time |
-
-### 3. Ask User with Recommendation
-
-```
-## Stage Failed: {stage}
-
-Feedback context: Cass flagged "unclear-scope" on Alex's spec
-History: This stage fails 25% of the time
-Recommended strategy: add-context
-
-Options:
-1. Retry with "add-context" strategy (recommended)
-2. Retry with simple retry
-3. Skip this stage (warning: missing artifacts)
-4. Abort pipeline
-```
-
-### 4. Apply Strategy and Retry
-
-If user selects a retry strategy, modify the agent prompt:
-
-**Example: add-context strategy**
-```
-[Original prompt]
-
-## Additional Context (added due to retry)
-Previous stage feedback indicated: "unclear-scope"
-Here is additional context from earlier stages:
-- System spec key points: [summary]
-- Feature spec key decisions: [summary]
-```
-
-### 5. Record Failure in History
-
-```javascript
-historyEntry.stages[stage] = {
-  status: "failed",
-  failedAt: "...",
-  attempts: N,
-  lastStrategy: "add-context",
-  feedbackContext: ["unclear-scope"]
-};
-```
-
-**On abort:** Update queue `failed` array with:
-```json
-{
+node bin/cli.js history record '{
   "slug": "{slug}",
-  "stage": "{stage}",
-  "reason": "{error message}",
-  "feedbackContext": ["issues from feedback chain"],
-  "attemptCount": N,
-  "timestamp": "{ISO timestamp}"
-}
+  "status": "success",
+  "startedAt": "<PIPELINE_START>",
+  "completedAt": "<now ISO 8601>",
+  "totalDurationMs": <elapsed ms>,
+  "commitHash": "<hash or null>",
+  "stages": {
+    "alex":             { "startedAt": "<ALEX_START>",        "completedAt": "<ALEX_END>",        "durationMs": <ALEX_DURATION_MS>,        "status": "success" },
+    "cass":             { "startedAt": "<CASS_START>",        "completedAt": "<CASS_END>",        "durationMs": <CASS_DURATION_MS>,        "status": "success" },
+    "nigel-spec":       { "startedAt": "<NIGEL_SPEC_START>",  "completedAt": "<NIGEL_SPEC_END>",  "durationMs": <NIGEL_SPEC_DURATION_MS>,  "status": "success" },
+    "nigel-tests":      { "startedAt": "<NIGEL_TESTS_START>", "completedAt": "<NIGEL_TESTS_END>", "durationMs": <NIGEL_TESTS_DURATION_MS>, "status": "success" },
+    "codey-plan":       { "startedAt": "<CODEY_PLAN_START>",  "completedAt": "<CODEY_PLAN_END>",  "durationMs": <CODEY_PLAN_DURATION_MS>,  "status": "success" },
+    "codey-implement":  { "startedAt": "<CODEY_IMPL_START>",  "completedAt": "<CODEY_IMPL_END>",  "durationMs": <CODEY_IMPL_DURATION_MS>,  "status": "success", "stepsCompleted": <N> }
+  }
+}'
 ```
 
----
+Omit stages that were skipped (e.g. cass when `--skip-stories` was used). Set `status` to `"failed"` and add `"failedStage": "<stage>"` on failure, or `"paused"` and `"pausedAfter": "<stage>"` on pause.
 
-## Queue Structure
-
-Location: `.claude/implement-queue.json`
-
-```json
-{
-  "lastUpdated": "2025-02-01T12:00:00Z",
-  "current": {
-    "slug": "user-auth",
-    "stage": "cass",
-    "startedAt": "2025-02-01T11:55:00Z"
-  },
-  "alexQueue": [],
-  "cassQueue": [{ "slug": "user-auth", "featureSpec": "..." }],
-  "nigelQueue": [],
-  "codeyQueue": [],
-  "completed": [{ "slug": "...", "testCount": 5, "commitHash": "abc123" }],
-  "failed": []
-}
-```
-
----
-
-## Recovery
-
-Run `/implement-feature` again - reads queue and resumes from `current.stage`.
-
----
-
-## Agent References
-
-| Agent | File |
-|-------|------|
-| Alex | `.blueprint/agents/AGENT_SPECIFICATION_ALEX.md` |
-| Cass | `.blueprint/agents/AGENT_BA_CASS.md` |
-| Nigel | `.blueprint/agents/AGENT_TESTER_NIGEL.md` |
-| Codey | `.blueprint/agents/AGENT_DEVELOPER_CODEY.md` |
-
----
-
-## Module Integration Summary (NEW)
-
-The pipeline integrates these murmur8 modules:
-
-| Module | File | Integration Points |
-|--------|------|-------------------|
-| **validate** | `src/validate.js` | Step 0: Pre-flight checks |
-| **history** | `src/history.js` | Steps 5-12: Record timing, tokens, cost |
-| **insights** | `src/insights.js` | Step 3.5: Preview, On failure: Analysis |
-| **feedback** | `src/feedback.js` | Steps 6.5, 7.5, 8.5: Quality gates |
-| **retry** | `src/retry.js` | On failure: Strategy recommendation |
-| **cost** | `src/cost.js` | Steps 6-12: Track tokens, calculate cost |
-| **diff-preview** | `src/diff-preview.js` | Step 10.5: Show changes before commit |
-
-### CLI Commands Available
+Then send telemetry. This never fails the run, but it is **not** silent: a rejected or undelivered send prints a one-line warning to stderr and the payload is queued to `.claude/telemetry-failed.json` for retry on the next `validate`. Do not re-add `2>/dev/null` — that is what previously hid a run of 401s.
 
 ```bash
-# Pre-flight validation
-npx murmur8 validate
-
-# History management
-npx murmur8 history
-npx murmur8 history --cost          # Include cost breakdown
-npx murmur8 history --stats
-npx murmur8 history --stats --cost  # Include cost metrics
-npx murmur8 history --all
-
-# Pipeline insights
-npx murmur8 insights
-npx murmur8 insights --feedback
-npx murmur8 insights --bottlenecks
-npx murmur8 insights --failures
-
-# Cost configuration
-npx murmur8 cost-config
-npx murmur8 cost-config set inputPrice 3    # Per million tokens
-npx murmur8 cost-config set outputPrice 15  # Per million tokens
-npx murmur8 cost-config reset
-
-# Retry configuration
-npx murmur8 retry-config
-npx murmur8 retry-config set maxRetries 5
-
-# Feedback configuration
-npx murmur8 feedback-config
-npx murmur8 feedback-config set minRatingThreshold 3.5
+node -e "
+const path = require('path');
+const fs = require('fs');
+const { loadConfig, buildPayload, generateRunId, resolveGitContext, ensureFeatureId, sendTelemetry } = require(require.resolve('murmur8/src/telemetry'));
+const config = loadConfig(path.join(process.cwd(), '.env'));
+// config reads MURMUR8_TELEMETRY_URL and MURMUR8_TELEMETRY_KEY from .env / process.env
+if (!config.url) process.exit(0);
+const { gitHubUser, repoName } = resolveGitContext(process.cwd());
+const featDir = '.blueprint/features/feature_{slug}';
+const specPath = path.join(featDir, 'FEATURE_SPEC.md');
+let featureId = null;
+try { featureId = ensureFeatureId(specPath); } catch (_) {}
+// featureSpec and stories are sent as PLAIN TEXT — the endpoint has no
+// artifacts field, so do not run these through compressArtifact().
+let featureSpec = null;
+try { featureSpec = fs.readFileSync(specPath, 'utf8'); } catch (_) {}
+let stories = null;
+try {
+  const files = fs.readdirSync(featDir).filter(f => /^story-.*\.md$/.test(f)).sort();
+  if (files.length) stories = files.map(f => ({ title: f.replace(/^story-|\.md$/g, ''), content: fs.readFileSync(path.join(featDir, f), 'utf8') }));
+} catch (_) {}
+const payload = buildPayload({
+  runId: generateRunId(),
+  featureId,
+  slug: '{slug}',
+  type: 'feature',
+  status: '<STATUS>',
+  startedAt: '<PIPELINE_START>',
+  completedAt: new Date().toISOString(),
+  totalDurationMs: <TOTAL_MS>,
+  gitHubUser,
+  repoName,
+  commitHash: '<COMMIT_HASH_OR_NULL>',
+  featureSpec,
+  stories,
+  stages: {
+    alex:            { startedAt: '<ALEX_START>',        completedAt: '<ALEX_END>',        durationMs: <ALEX_DURATION_MS>,        status: 'success' },
+    cass:            { startedAt: '<CASS_START>',        completedAt: '<CASS_END>',        durationMs: <CASS_DURATION_MS>,        status: 'success' },
+    'nigel-spec':    { startedAt: '<NIGEL_SPEC_START>',  completedAt: '<NIGEL_SPEC_END>',  durationMs: <NIGEL_SPEC_DURATION_MS>,  status: 'success' },
+    'nigel-tests':   { startedAt: '<NIGEL_TESTS_START>', completedAt: '<NIGEL_TESTS_END>', durationMs: <NIGEL_TESTS_DURATION_MS>, status: 'success' },
+    'codey-plan':    { startedAt: '<CODEY_PLAN_START>',  completedAt: '<CODEY_PLAN_END>',  durationMs: <CODEY_PLAN_DURATION_MS>,  status: 'success' },
+    'codey-implement':{ startedAt: '<CODEY_IMPL_START>', completedAt: '<CODEY_IMPL_END>',  durationMs: <CODEY_IMPL_DURATION_MS>,  status: 'success' },
+  },
+});
+sendTelemetry(payload, { url: config.url, key: config.key, queuePath: config.queuePath })
+  .then((r) => {
+    if (r.ok) { console.error('[murmur8] telemetry recorded' + (r.id ? ' (' + r.id + ')' : '')); return; }
+    console.error('[murmur8] telemetry NOT recorded: ' + (r.error || 'unknown error') + (r.queued ? ' — queued for retry' : ''));
+  })
+  .catch((e) => console.error('[murmur8] telemetry error: ' + e.message));
+" || true
 ```
 
-### Data Files Created
+If the warning reports `HTTP 401`, the API key is wrong or revoked — check `npx murmur8 telemetry-config` and confirm the key in `.env` is the one issued by the portal. `HTTP 422` means the payload is missing a required field (`slug`, `status`, `startedAt`, `completedAt`, `totalDurationMs`, `stages`).
 
-| File | Purpose |
-|------|---------|
-| `.claude/pipeline-history.json` | Execution history with timing, feedback, and cost |
-| `.claude/retry-config.json` | Retry strategies and thresholds |
-| `.claude/feedback-config.json` | Feedback quality gate thresholds |
-| `.claude/cost-config.json` | Token pricing configuration |
-| `.claude/implement-queue.json` | Pipeline queue state (existing) |
+**Display summary:** Stage status (✓/✗), test count, duration, commit hash, feedback ratings, cost breakdown per stage.
+
+---
+
+## Error Handling & Recovery
+
+**Load full instructions on failure:** Read `.blueprint/prompts/skill-error-recovery.md`
+
+**Summary:** On stage failure, analyze feedback chain + history patterns, recommend a retry strategy (retry, simplify-prompt, add-context, reduce-stories, simplify-tests, incremental), ask user, apply modified prompt, record outcome.
+
+**Recovery:** Run `/implement-feature` again — reads queue and resumes from `current.stage`.
