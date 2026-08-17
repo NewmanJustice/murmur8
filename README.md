@@ -18,6 +18,31 @@ npm install murmur8@latest
 
 After that, `npx murmur8 update` will keep you up to date automatically.
 
+## Upgrading to v4.7.14
+
+v4.7.14 fixes silent telemetry failures. Upgrading the package is usually enough:
+
+```bash
+npx murmur8 update
+```
+
+**Check for a stale nested copy.** Before v4.7.14, `npx murmur8 update` ran `npm install murmur8@latest` unconditionally. Because npm walks up to the nearest `package.json`, running it from a directory that had none installed murmur8 into whichever parent directory did — sometimes an unrelated project, and sometimes murmur8 itself. The result is a second copy of murmur8 nested inside your `node_modules/`, which the skill loads *in preference to* the one you just upgraded. v4.7.14 stops this happening again, but it cannot remove a copy that is already there.
+
+If telemetry still fails silently after upgrading, check for one:
+
+```bash
+npm ls murmur8
+```
+
+A nested entry (murmur8 listed underneath another package rather than at the top level) is the stale copy. Remove it and reinstall:
+
+```bash
+rm -rf node_modules/<parent-package>/node_modules/murmur8
+npm install murmur8@latest
+```
+
+If your telemetry key was quoted in `.env`, unquote it — see [Activation](#activation).
+
 ## The Workflow
 
 ### Start with a conversation
@@ -137,6 +162,8 @@ npx murmur8 update
 ```
 
 This runs `npm install murmur8@latest` first, then refreshes `.blueprint/agents/`, `.blueprint/templates/`, `.blueprint/ways_of_working/`, and `.claude/commands/implement-feature.md` from the updated package. Your content in `features/` and `system_specification/` is preserved.
+
+The `npm install` step only runs if the current directory has its own `package.json`. Without one, npm would walk up and install into an unrelated parent project, so `update` skips it and tells you to run `npm install murmur8@latest` yourself.
 
 ## Commands
 
@@ -582,6 +609,8 @@ MURMUR8_TELEMETRY_URL=https://your-ingest-endpoint.com/events
 MURMUR8_TELEMETRY_KEY=your-api-key   # optional — sent as Authorization: Bearer
 ```
 
+Do not quote the values. `.env` is not a shell script, so `MURMUR8_TELEMETRY_KEY="abc"` used to send the quotes as part of the key and got a 401 back. From v4.7.14 surrounding quotes, an `export ` prefix and trailing `# comments` are all stripped, but unquoted values remain the clearest form.
+
 Real environment variables take precedence over `.env`, making it straightforward to configure in CI/CD without storing credentials in files. `.env` is automatically added to `.gitignore` during init.
 
 ### What gets sent
@@ -592,13 +621,29 @@ Real environment variables take precedence over `.env`, making it straightforwar
 | `featureId` | UUID stable across retries — written into FEATURE_SPEC.md frontmatter once by Alex |
 | `identity` | Git user name/email, repo remote URL, org ID, murmur8 version |
 | `run` | Slug, status, start/end timestamps, per-stage timings and statuses, feedback ratings |
-| `artifacts` | Feature spec and story files, gzip + base64 encoded |
+| `featureSpec` | The FEATURE_SPEC.md body, as plain UTF-8 text |
+| `stories` | `[{ title, content }, …]` — one entry per story file, as plain text |
+
+`run` is the object actually posted; `featureSpec` and `stories` are fields on it. `runId` is a client-side correlation id for local history — the endpoint mints its own id and ignores it.
 
 `featureId` enables cross-run correlation: all retries of the same feature share one `featureId` while each execution gets a unique `runId`. This lets you query "all runs ever attempted for this feature" and trace evolution over time.
 
 ### Reliability
 
-Sends are non-blocking and never interrupt the pipeline. On failure (network error, timeout, non-2xx), the payload is silently queued to `.claude/telemetry-failed.json` and retried at the start of the next run.
+Sends are non-blocking and never interrupt the pipeline, but they are **not silent about failure**. On a network error, timeout or non-2xx response, the reason is written to stderr — including the status code and the response body — and the payload is queued to `.claude/telemetry-failed.json`:
+
+```
+[murmur8] telemetry NOT recorded: HTTP 401 — {"error":"invalid api key"} — queued for retry
+```
+
+Queued runs are redelivered by pre-flight validation on the next pipeline run, or on demand:
+
+```bash
+npx murmur8 validate
+# ✓ Telemetry queue: retried 2 queued run(s) — 2 delivered, 0 still queued
+```
+
+The queue holds at most 50 entries and is gitignored. Common causes: `401` means the key is wrong or was sent with quotes around it; `422` means the payload was rejected as malformed.
 
 ### Viewing configuration
 
