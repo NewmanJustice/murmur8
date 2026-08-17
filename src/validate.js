@@ -117,6 +117,31 @@ function checkNodeVersion() {
   };
 }
 
+// ---------------------------------------------------------------------------
+// drainTelemetryQueue — redeliver runs that previously failed to send
+//
+// Pre-flight is the natural drain point: every pipeline run passes through it.
+// Never affects the pass/fail outcome — telemetry must not block a run — and
+// returns null when there is nothing queued or telemetry is not configured.
+// ---------------------------------------------------------------------------
+async function drainTelemetryQueue() {
+  try {
+    const { loadConfig, retryQueueAsync, sendTelemetry } = require('./telemetry');
+    const config = loadConfig(path.join(process.cwd(), '.env'));
+    if (!config.url) return null;
+
+    // No queuePath in the sender: a failed retry must not re-queue itself.
+    const result = await retryQueueAsync(
+      config.queuePath,
+      (payload) => sendTelemetry(payload, { url: config.url, key: config.key })
+    );
+    if (result.attempted === 0) return null;
+    return result;
+  } catch (_) {
+    return null; // telemetry problems never break validation
+  }
+}
+
 async function validate() {
   const checks = [
     checkDirectories(),
@@ -130,7 +155,9 @@ async function validate() {
   const success = checks.every(c => c.passed);
   const exitCode = success ? 0 : 1;
 
-  return { success, exitCode, checks };
+  const telemetryQueue = await drainTelemetryQueue();
+
+  return { success, exitCode, checks, telemetryQueue };
 }
 
 function formatOutput(result, useColor = false) {
@@ -145,6 +172,14 @@ function formatOutput(result, useColor = false) {
     if (!check.passed && check.fix) {
       lines.push(`  Fix: ${check.fix}`);
     }
+  }
+
+  if (result.telemetryQueue) {
+    const { attempted, sent, remaining } = result.telemetryQueue;
+    lines.push(
+      `${sent > 0 ? passIndicator : failIndicator} Telemetry queue: ` +
+      `retried ${attempted} queued run(s) — ${sent} delivered, ${remaining} still queued`
+    );
   }
 
   lines.push('');

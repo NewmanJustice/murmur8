@@ -722,19 +722,30 @@ node bin/cli.js history record '{
 
 Omit stages that were skipped (e.g. cass when `--skip-stories` was used). Set `status` to `"failed"` and add `"failedStage": "<stage>"` on failure, or `"paused"` and `"pausedAfter": "<stage>"` on pause.
 
-Then send telemetry (fire-and-forget, silent on success or failure):
+Then send telemetry. This never fails the run, but it is **not** silent: a rejected or undelivered send prints a one-line warning to stderr and the payload is queued to `.claude/telemetry-failed.json` for retry on the next `validate`. Do not re-add `2>/dev/null` — that is what previously hid a run of 401s.
 
 ```bash
 node -e "
 const path = require('path');
+const fs = require('fs');
 const { loadConfig, buildPayload, generateRunId, resolveGitContext, ensureFeatureId, sendTelemetry } = require(require.resolve('murmur8/src/telemetry'));
 const config = loadConfig(path.join(process.cwd(), '.env'));
 // config reads MURMUR8_TELEMETRY_URL and MURMUR8_TELEMETRY_KEY from .env / process.env
 if (!config.url) process.exit(0);
 const { gitHubUser, repoName } = resolveGitContext(process.cwd());
-const specPath = '.blueprint/features/feature_{slug}/FEATURE_SPEC.md';
+const featDir = '.blueprint/features/feature_{slug}';
+const specPath = path.join(featDir, 'FEATURE_SPEC.md');
 let featureId = null;
 try { featureId = ensureFeatureId(specPath); } catch (_) {}
+// featureSpec and stories are sent as PLAIN TEXT — the endpoint has no
+// artifacts field, so do not run these through compressArtifact().
+let featureSpec = null;
+try { featureSpec = fs.readFileSync(specPath, 'utf8'); } catch (_) {}
+let stories = null;
+try {
+  const files = fs.readdirSync(featDir).filter(f => /^story-.*\.md$/.test(f)).sort();
+  if (files.length) stories = files.map(f => ({ title: f.replace(/^story-|\.md$/g, ''), content: fs.readFileSync(path.join(featDir, f), 'utf8') }));
+} catch (_) {}
 const payload = buildPayload({
   runId: generateRunId(),
   featureId,
@@ -746,6 +757,9 @@ const payload = buildPayload({
   totalDurationMs: <TOTAL_MS>,
   gitHubUser,
   repoName,
+  commitHash: '<COMMIT_HASH_OR_NULL>',
+  featureSpec,
+  stories,
   stages: {
     alex:            { startedAt: '<ALEX_START>',        completedAt: '<ALEX_END>',        durationMs: <ALEX_DURATION_MS>,        status: 'success' },
     cass:            { startedAt: '<CASS_START>',        completedAt: '<CASS_END>',        durationMs: <CASS_DURATION_MS>,        status: 'success' },
@@ -755,9 +769,16 @@ const payload = buildPayload({
     'codey-implement':{ startedAt: '<CODEY_IMPL_START>', completedAt: '<CODEY_IMPL_END>',  durationMs: <CODEY_IMPL_DURATION_MS>,  status: 'success' },
   },
 });
-sendTelemetry(payload, { url: config.url, key: config.key }).catch(() => {});
-" 2>/dev/null || true
+sendTelemetry(payload, { url: config.url, key: config.key, queuePath: config.queuePath })
+  .then((r) => {
+    if (r.ok) { console.error('[murmur8] telemetry recorded' + (r.id ? ' (' + r.id + ')' : '')); return; }
+    console.error('[murmur8] telemetry NOT recorded: ' + (r.error || 'unknown error') + (r.queued ? ' — queued for retry' : ''));
+  })
+  .catch((e) => console.error('[murmur8] telemetry error: ' + e.message));
+" || true
 ```
+
+If the warning reports `HTTP 401`, the API key is wrong or revoked — check `npx murmur8 telemetry-config` and confirm the key in `.env` is the one issued by the portal. `HTTP 422` means the payload is missing a required field (`slug`, `status`, `startedAt`, `completedAt`, `totalDurationMs`, `stages`).
 
 **Display summary:** Stage status (✓/✗), test count, duration, commit hash, feedback ratings, cost breakdown per stage.
 

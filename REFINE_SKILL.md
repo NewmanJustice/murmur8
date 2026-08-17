@@ -239,10 +239,25 @@ const payload = buildPayload({
   totalDurationMs: <TOTAL_MS>,
   gitHubUser,
   repoName,
+  // stages is REQUIRED by the ingestion endpoint — omitting it returns 422.
+  // Include only the stages this refinement actually ran.
+  stages: {
+    alex:             { startedAt: '<ALEX_START>',       completedAt: '<ALEX_END>',       durationMs: <ALEX_DURATION_MS>,       status: 'success' },
+    'codey-implement':{ startedAt: '<CODEY_IMPL_START>', completedAt: '<CODEY_IMPL_END>', durationMs: <CODEY_IMPL_DURATION_MS>, status: 'success' },
+  },
 });
-sendTelemetry(payload, { url: config.url, key: config.key }).catch(() => {});
-" 2>/dev/null || true
+sendTelemetry(payload, { url: config.url, key: config.key, queuePath: config.queuePath })
+  .then((r) => {
+    if (r.ok) { console.error('[murmur8] telemetry recorded' + (r.id ? ' (' + r.id + ')' : '')); return; }
+    console.error('[murmur8] telemetry NOT recorded: ' + (r.error || 'unknown error') + (r.queued ? ' — queued for retry' : ''));
+  })
+  .catch((e) => console.error('[murmur8] telemetry error: ' + e.message));
+" || true
 ```
+
+Telemetry never fails a refinement, but it is not silent — an undelivered send warns on stderr and is queued to `.claude/telemetry-failed.json`. Do not re-add `2>/dev/null`.
+
+**`parentRunId` caveat:** `linkParentRun()` returns the *client-side* `runId` from local history. The ingestion endpoint mints its own run id, so a client-generated `parentRunId` will not resolve server-side and the insert is rejected. Pass `{PARENT_RUN_ID}` only when it is a portal-issued id; otherwise omit it.
 
 ### Step 8: Commit (unless --no-commit)
 

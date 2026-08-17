@@ -107,7 +107,8 @@ const {
   getPromptText
 } = require('./diff-preview');
 const { loadConfig, generateRunId, resolveGitContext, ensureFeatureId, buildPayload, compressArtifact,
-        enqueueFailure, retryQueue, ensureDotenv, ensureGitignore, formatTelemetryConfig
+        sendTelemetry, enqueueFailure, retryQueue, retryQueueAsync, ensureDotenv, ensureGitignore,
+        formatTelemetryConfig
       } = require('./telemetry');
 const tools = require('./tools');
 const theme = require('./theme');
@@ -181,8 +182,10 @@ module.exports = {
   ensureFeatureId,
   buildPayload,
   compressArtifact,
+  sendTelemetry,
   enqueueFailure,
   retryQueue,
+  retryQueueAsync,
   ensureDotenv,
   ensureGitignore,
   formatTelemetryConfig,

@@ -5,11 +5,10 @@ const { loadConfig, formatTelemetryConfig } = require('../telemetry');
 
 const description = 'View telemetry configuration and failed-send queue status';
 
-const QUEUE_PATH = '.claude/telemetry-failed.json';
-
 async function run(_args) {
   const config = loadConfig('.env');
-  const output = formatTelemetryConfig(config, QUEUE_PATH);
+  // queuePath comes from loadConfig (MURMUR8_TELEMETRY_QUEUE, else .claude/telemetry-failed.json)
+  const output = formatTelemetryConfig(config);
   console.log(output);
 }
 

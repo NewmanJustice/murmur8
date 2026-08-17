@@ -13,10 +13,14 @@ const PKG_VERSION = require('../package.json').version;
 const SEMVER_RE = /^\d+\.\d+\.\d+$/;
 const ANSI_RE = /\x1b\[[0-9;]*m/;
 
+// Trailing object argument sets spawn options (currently just cwd); defaults to ROOT.
 function run(...args) {
+  let opts = {};
+  const last = args[args.length - 1];
+  if (args.length > 0 && last !== null && typeof last === 'object') opts = args.pop();
   return spawnSync(process.execPath, [CLI, ...args], {
     encoding: 'utf8',
-    cwd: ROOT,
+    cwd: opts.cwd || ROOT,
   });
 }
 
@@ -72,23 +76,40 @@ describe('display-version-number — Version Invocation', () => {
   });
 
   // DVN-7: no .claude/ side effects
+  //
+  // Runs against a temp project rather than ROOT. The repo's own .claude/ is
+  // shared mutable state — other test files run concurrently in separate
+  // processes and invoke CLI commands that write there (e.g. pipeline-history.json),
+  // so snapshotting it made this assertion flaky. A dedicated project directory
+  // tests the same contract deterministically.
   it('DVN-7: no files under .claude/ are created or modified', () => {
-    const claudeDir = path.join(ROOT, '.claude');
-    function snapshot(dir) {
-      if (!fs.existsSync(dir)) return {};
-      const result = {};
-      for (const entry of fs.readdirSync(dir, { recursive: true })) {
-        const full = path.join(dir, entry);
-        try {
-          result[entry] = fs.statSync(full).mtimeMs;
-        } catch { /* ignore */ }
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dvn7-'));
+    try {
+      const claudeDir = path.join(tmp, '.claude');
+      fs.mkdirSync(path.join(claudeDir, 'commands'), { recursive: true });
+      fs.writeFileSync(path.join(claudeDir, 'implement-queue.json'), '{"current":null}\n');
+      fs.writeFileSync(path.join(claudeDir, 'commands', 'implement-feature.md'), '# skill\n');
+
+      function snapshot(dir) {
+        if (!fs.existsSync(dir)) return {};
+        const result = {};
+        for (const entry of fs.readdirSync(dir, { recursive: true })) {
+          const full = path.join(dir, entry);
+          try {
+            result[entry] = fs.statSync(full).mtimeMs;
+          } catch { /* ignore */ }
+        }
+        return result;
       }
-      return result;
+
+      const before = snapshot(claudeDir);
+      const result = run('--version', { cwd: tmp });
+      assert.strictEqual(result.status, 0, `expected exit 0, got ${result.status}; stderr: ${result.stderr}`);
+      const after = snapshot(claudeDir);
+      assert.deepStrictEqual(after, before, '.claude/ directory state changed after --version invocation');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
     }
-    const before = snapshot(claudeDir);
-    run('--version');
-    const after = snapshot(claudeDir);
-    assert.deepStrictEqual(after, before, '.claude/ directory state changed after --version invocation');
   });
 
   // DVN-8: error path — missing package.json → non-zero exit, stderr message, empty stdout

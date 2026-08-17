@@ -82,13 +82,24 @@ async function update() {
     process.exit(1);
   }
 
-  // Update the npm package first so subsequent file copies use the new version
-  console.log('Updating murmur8 npm package...');
-  try {
-    execSync('npm install murmur8@latest', { cwd: TARGET_DIR, stdio: 'inherit' });
-    console.log('');
-  } catch (err) {
-    console.warn('Warning: npm update murmur8 failed — continuing with installed version\n');
+  // Update the npm package first so subsequent file copies use the new version.
+  //
+  // Only when TARGET_DIR owns a package.json: `npm install` walks UP the
+  // directory tree when the cwd has none, so it would silently install into
+  // whichever ancestor happens to have one — adding murmur8 to an unrelated
+  // parent project's dependencies. (Running update from a fixture inside this
+  // repo made murmur8 depend on itself and shadowed src/ with a stale copy.)
+  if (fs.existsSync(path.join(TARGET_DIR, 'package.json'))) {
+    console.log('Updating murmur8 npm package...');
+    try {
+      execSync('npm install murmur8@latest', { cwd: TARGET_DIR, stdio: 'inherit' });
+      console.log('');
+    } catch (err) {
+      console.warn('Warning: npm update murmur8 failed — continuing with installed version\n');
+    }
+  } else {
+    console.log('No package.json here — skipping npm package update.');
+    console.log('To upgrade the package itself, run: npm install murmur8@latest\n');
   }
 
   console.log('Updating agent-workflow...');

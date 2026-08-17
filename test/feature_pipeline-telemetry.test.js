@@ -374,11 +374,39 @@ describe('Init Integration (.env and .gitignore)', () => {
     assert.ok(lines.includes('.env'));
   });
 
-  it('T-II-5: .gitignore not modified if .env already listed', () => {
-    fs.writeFileSync(path.join(tmp, '.gitignore'), 'node_modules\n.env\n');
+  // T-II-5 originally asserted a .gitignore listing `.env` was never touched.
+  // ensureGitignore now also covers the telemetry failed-send queue, so the
+  // no-op contract is per-entry: nothing missing → byte-identical.
+  it('T-II-5: .gitignore not modified once every entry is already listed', () => {
+    fs.writeFileSync(path.join(tmp, '.gitignore'), 'node_modules\n.env\n.claude/telemetry-failed.json\n');
     const before = fs.readFileSync(path.join(tmp, '.gitignore'), 'utf8');
     ensureGitignore(tmp);
     assert.equal(fs.readFileSync(path.join(tmp, '.gitignore'), 'utf8'), before);
+  });
+
+  it('T-II-6: only the missing entry is appended when .env is already listed', () => {
+    fs.writeFileSync(path.join(tmp, '.gitignore'), 'node_modules\n.env\n');
+    ensureGitignore(tmp);
+    const content = fs.readFileSync(path.join(tmp, '.gitignore'), 'utf8');
+    const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
+    assert.deepEqual(lines, ['node_modules', '.env', '.claude/telemetry-failed.json']);
+    // and .env is not duplicated
+    assert.equal(lines.filter(l => l === '.env').length, 1);
+  });
+
+  it('T-II-7: telemetry queue ignored when .gitignore is absent entirely', () => {
+    ensureGitignore(tmp);
+    const lines = fs.readFileSync(path.join(tmp, '.gitignore'), 'utf8').split('\n').map(l => l.trim());
+    assert.ok(lines.includes('.env'));
+    assert.ok(lines.includes('.claude/telemetry-failed.json'));
+  });
+
+  it('T-II-8: ensureGitignore is idempotent across repeated init/update runs', () => {
+    ensureGitignore(tmp);
+    const after1 = fs.readFileSync(path.join(tmp, '.gitignore'), 'utf8');
+    ensureGitignore(tmp);
+    ensureGitignore(tmp);
+    assert.equal(fs.readFileSync(path.join(tmp, '.gitignore'), 'utf8'), after1);
   });
 });
 
