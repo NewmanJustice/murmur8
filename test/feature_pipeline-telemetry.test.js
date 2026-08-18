@@ -197,6 +197,81 @@ describe('Payload Construction and Send', () => {
     assert.equal(p.run.gitHubUser, null);
     assert.equal(p.run.repoName, null);
   });
+
+  it('T-REG-1: endpoint payload compatibility keeps run.totalCost optional', () => {
+    const withTotalCost = buildPayload({
+      runId: generateRunId(),
+      featureId: generateRunId(),
+      slug: 'compat-with-cost',
+      status: 'success',
+      startedAt: '2026-08-18T00:00:00.000Z',
+      completedAt: '2026-08-18T00:01:00.000Z',
+      totalDurationMs: 60000,
+      totalCost: 0.42,
+      stages: { alex: { status: 'success', durationMs: 1000 } },
+    });
+    assert.equal(withTotalCost.run.totalCost, 0.42);
+
+    const withoutTotalCost = buildPayload({
+      runId: generateRunId(),
+      featureId: generateRunId(),
+      slug: 'compat-without-cost',
+      status: 'success',
+      startedAt: '2026-08-18T00:00:00.000Z',
+      completedAt: '2026-08-18T00:01:00.000Z',
+      totalDurationMs: 60000,
+      stages: { alex: { status: 'success', durationMs: 1000 } },
+    });
+    assert.equal(Object.hasOwn(withoutTotalCost.run, 'totalCost'), false);
+  });
+
+  it('T-REG-2: endpoint payload compatibility accepts valid partial stage economics combinations', () => {
+    const p = buildPayload({
+      runId: generateRunId(),
+      featureId: generateRunId(),
+      slug: 'compat-partial-stage-economics',
+      status: 'success',
+      startedAt: '2026-08-18T00:00:00.000Z',
+      completedAt: '2026-08-18T00:01:00.000Z',
+      totalDurationMs: 60000,
+      stages: {
+        costOnly: {
+          status: 'success',
+          startedAt: '2026-08-18T00:00:00.000Z',
+          completedAt: '2026-08-18T00:00:05.000Z',
+          durationMs: 5000,
+          cost: 0.11,
+        },
+        partialWithFallback: {
+          status: 'success',
+          startedAt: '2026-08-18T00:00:05.000Z',
+          completedAt: '2026-08-18T00:00:10.000Z',
+          durationMs: 5000,
+          tokens: { input: 7 },
+        },
+        fullTokens: {
+          status: 'success',
+          startedAt: '2026-08-18T00:00:10.000Z',
+          completedAt: '2026-08-18T00:00:15.000Z',
+          durationMs: 5000,
+          tokens: { input: 2, output: 3, total: 5 },
+        },
+      },
+      historyStages: {
+        partialWithFallback: {
+          tokens: { output: 11, total: 18 },
+        },
+      },
+    });
+
+    assert.equal(p.run.stages.costOnly.cost, 0.11);
+    assert.equal(Object.hasOwn(p.run.stages.costOnly, 'tokens'), false);
+    assert.deepEqual(p.run.stages.partialWithFallback.tokens, { input: 7, output: 11, total: 18 });
+    assert.deepEqual(p.run.stages.fullTokens.tokens, { input: 2, output: 3, total: 5 });
+    assert.equal(p.run.stages.costOnly.status, 'success');
+    assert.equal(p.run.stages.partialWithFallback.durationMs, 5000);
+    assert.equal(p.run.stages.fullTokens.durationMs, 5000);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -227,6 +227,54 @@ const { gitHubUser, repoName } = resolveGitContext(process.cwd());
 const specPath = '.blueprint/features/feature_{slug}/FEATURE_SPEC.md';
 let featureId = null;
 try { featureId = ensureFeatureId(specPath); } catch (_) {}
+const runtimeTotalCost = <RUNTIME_TOTAL_COST_OR_UNDEFINED>;
+const historyTotalCost = <HISTORY_TOTAL_COST_OR_UNDEFINED>;
+const resolvedTotalCost = Number.isFinite(runtimeTotalCost)
+  ? runtimeTotalCost
+  : (Number.isFinite(historyTotalCost) ? historyTotalCost : undefined);
+const runtimeStageEconomics = <RUNTIME_STAGE_ECONOMICS_OR_UNDEFINED>;
+const historyStageEconomics = <HISTORY_STAGE_ECONOMICS_OR_UNDEFINED>;
+const normalizeStageTokens = (tokens) => {
+  if (!tokens || typeof tokens !== 'object') return undefined;
+  const input = Number.isFinite(tokens.input) ? tokens.input : undefined;
+  const output = Number.isFinite(tokens.output) ? tokens.output : undefined;
+  const normalized = {};
+  if (input !== undefined) normalized.input = input;
+  if (output !== undefined) normalized.output = output;
+  if (input !== undefined && output !== undefined) {
+    const total = input + output;
+    normalized.total = Number.isFinite(tokens.total) && tokens.total === total ? tokens.total : total;
+  }
+  return Object.keys(normalized).length ? normalized : undefined;
+};
+const withOptionalEconomics = (stageName, stageData) => {
+  const runtimeEconomics = runtimeStageEconomics?.[stageName];
+  const historyEconomics = historyStageEconomics?.[stageName];
+  const resolvedCost = Number.isFinite(runtimeEconomics?.cost)
+    ? runtimeEconomics.cost
+    : (Number.isFinite(historyEconomics?.cost) ? historyEconomics.cost : undefined);
+  const resolvedTokens = normalizeStageTokens(runtimeEconomics?.tokens ?? historyEconomics?.tokens);
+  return {
+    ...stageData,
+    ...(resolvedCost !== undefined ? { cost: resolvedCost } : {}),
+    ...(resolvedTokens ? { tokens: resolvedTokens } : {}),
+  };
+};
+const stageCandidates = {
+  alex: withOptionalEconomics('alex', { startedAt: '<ALEX_START>', completedAt: '<ALEX_END>', durationMs: <ALEX_DURATION_MS>, status: 'success' }),
+  cass: withOptionalEconomics('cass', { startedAt: '<CASS_START_OR_NULL>', completedAt: '<CASS_END_OR_NULL>', durationMs: <CASS_DURATION_MS_OR_NULL>, status: '<CASS_STATUS_OR_SKIPPED>' }),
+  'nigel-tests': withOptionalEconomics('nigel-tests', { startedAt: '<NIGEL_TESTS_START>', completedAt: '<NIGEL_TESTS_END>', durationMs: <NIGEL_TESTS_DURATION_MS>, status: 'success' }),
+  'codey-implement': withOptionalEconomics('codey-implement', { startedAt: '<CODEY_IMPL_START>', completedAt: '<CODEY_IMPL_END>', durationMs: <CODEY_IMPL_DURATION_MS>, status: 'success' }),
+};
+const stages = Object.fromEntries(
+  Object.entries(stageCandidates).filter(([, stage]) =>
+    stage &&
+    stage.status !== 'skipped' &&
+    typeof stage.startedAt === 'string' &&
+    typeof stage.completedAt === 'string' &&
+    Number.isFinite(stage.durationMs)
+  )
+);
 const payload = buildPayload({
   runId: generateRunId(),
   featureId,
@@ -239,12 +287,12 @@ const payload = buildPayload({
   totalDurationMs: <TOTAL_MS>,
   gitHubUser,
   repoName,
+  commitHash: <COMMIT_HASH_OR_NULL> ?? null,
+  ...(Number.isFinite(resolvedTotalCost) ? { totalCost: resolvedTotalCost } : {}),
+  historyStages: historyStageEconomics,
   // stages is REQUIRED by the ingestion endpoint — omitting it returns 422.
-  // Include only the stages this refinement actually ran.
-  stages: {
-    alex:             { startedAt: '<ALEX_START>',       completedAt: '<ALEX_END>',       durationMs: <ALEX_DURATION_MS>,       status: 'success' },
-    'codey-implement':{ startedAt: '<CODEY_IMPL_START>', completedAt: '<CODEY_IMPL_END>', durationMs: <CODEY_IMPL_DURATION_MS>, status: 'success' },
-  },
+  // Emit only stages that actually executed.
+  stages,
 });
 sendTelemetry(payload, { url: config.url, key: config.key, queuePath: config.queuePath })
   .then((r) => {

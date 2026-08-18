@@ -746,6 +746,26 @@ try {
   const files = fs.readdirSync(featDir).filter(f => /^story-.*\.md$/.test(f)).sort();
   if (files.length) stories = files.map(f => ({ title: f.replace(/^story-|\.md$/g, ''), content: fs.readFileSync(path.join(featDir, f), 'utf8') }));
 } catch (_) {}
+const runtimeTotalCost = <RUNTIME_TOTAL_COST_OR_UNDEFINED>;
+const historyTotalCost = <HISTORY_TOTAL_COST_OR_UNDEFINED>;
+const resolvedTotalCost = Number.isFinite(runtimeTotalCost)
+  ? runtimeTotalCost
+  : (Number.isFinite(historyTotalCost) ? historyTotalCost : undefined);
+const runtimeStageEconomics = <RUNTIME_STAGE_ECONOMICS_OR_UNDEFINED>;
+const historyStageEconomics = <HISTORY_STAGE_ECONOMICS_OR_UNDEFINED>;
+const normalizeStageTokens = (tokens) => {
+  if (!tokens || typeof tokens !== 'object') return tokens;
+  const input = Number.isFinite(tokens.input) ? tokens.input : undefined;
+  const output = Number.isFinite(tokens.output) ? tokens.output : undefined;
+  const normalized = {};
+  if (input !== undefined) normalized.input = input;
+  if (output !== undefined) normalized.output = output;
+  if (input !== undefined && output !== undefined) {
+    const total = input + output;
+    normalized.total = Number.isFinite(tokens.total) && tokens.total === total ? tokens.total : total;
+  }
+  return Object.keys(normalized).length ? normalized : undefined;
+};
 const payload = buildPayload({
   runId: generateRunId(),
   featureId,
@@ -757,16 +777,18 @@ const payload = buildPayload({
   totalDurationMs: <TOTAL_MS>,
   gitHubUser,
   repoName,
-  commitHash: '<COMMIT_HASH_OR_NULL>',
+  commitHash: <COMMIT_HASH_OR_NULL> ?? null,
+  ...(Number.isFinite(resolvedTotalCost) ? { totalCost: resolvedTotalCost } : {}),
   featureSpec,
   stories,
+  historyStages: historyStageEconomics,
   stages: {
-    alex:            { startedAt: '<ALEX_START>',        completedAt: '<ALEX_END>',        durationMs: <ALEX_DURATION_MS>,        status: 'success' },
-    cass:            { startedAt: '<CASS_START>',        completedAt: '<CASS_END>',        durationMs: <CASS_DURATION_MS>,        status: 'success' },
-    'nigel-spec':    { startedAt: '<NIGEL_SPEC_START>',  completedAt: '<NIGEL_SPEC_END>',  durationMs: <NIGEL_SPEC_DURATION_MS>,  status: 'success' },
-    'nigel-tests':   { startedAt: '<NIGEL_TESTS_START>', completedAt: '<NIGEL_TESTS_END>', durationMs: <NIGEL_TESTS_DURATION_MS>, status: 'success' },
-    'codey-plan':    { startedAt: '<CODEY_PLAN_START>',  completedAt: '<CODEY_PLAN_END>',  durationMs: <CODEY_PLAN_DURATION_MS>,  status: 'success' },
-    'codey-implement':{ startedAt: '<CODEY_IMPL_START>', completedAt: '<CODEY_IMPL_END>',  durationMs: <CODEY_IMPL_DURATION_MS>,  status: 'success' },
+    alex:            { startedAt: '<ALEX_START>',        completedAt: '<ALEX_END>',        durationMs: <ALEX_DURATION_MS>,        status: 'success', cost: runtimeStageEconomics?.alex?.cost ?? historyStageEconomics?.alex?.cost, tokens: normalizeStageTokens(runtimeStageEconomics?.alex?.tokens ?? historyStageEconomics?.alex?.tokens) },
+    cass:            { startedAt: '<CASS_START>',        completedAt: '<CASS_END>',        durationMs: <CASS_DURATION_MS>,        status: 'success', cost: runtimeStageEconomics?.cass?.cost ?? historyStageEconomics?.cass?.cost, tokens: normalizeStageTokens(runtimeStageEconomics?.cass?.tokens ?? historyStageEconomics?.cass?.tokens) },
+    'nigel-spec':    { startedAt: '<NIGEL_SPEC_START>',  completedAt: '<NIGEL_SPEC_END>',  durationMs: <NIGEL_SPEC_DURATION_MS>,  status: 'success', cost: runtimeStageEconomics?.['nigel-spec']?.cost ?? historyStageEconomics?.['nigel-spec']?.cost, tokens: normalizeStageTokens(runtimeStageEconomics?.['nigel-spec']?.tokens ?? historyStageEconomics?.['nigel-spec']?.tokens) },
+    'nigel-tests':   { startedAt: '<NIGEL_TESTS_START>', completedAt: '<NIGEL_TESTS_END>', durationMs: <NIGEL_TESTS_DURATION_MS>, status: 'success', cost: runtimeStageEconomics?.['nigel-tests']?.cost ?? historyStageEconomics?.['nigel-tests']?.cost, tokens: normalizeStageTokens(runtimeStageEconomics?.['nigel-tests']?.tokens ?? historyStageEconomics?.['nigel-tests']?.tokens) },
+    'codey-plan':    { startedAt: '<CODEY_PLAN_START>',  completedAt: '<CODEY_PLAN_END>',  durationMs: <CODEY_PLAN_DURATION_MS>,  status: 'success', cost: runtimeStageEconomics?.['codey-plan']?.cost ?? historyStageEconomics?.['codey-plan']?.cost, tokens: normalizeStageTokens(runtimeStageEconomics?.['codey-plan']?.tokens ?? historyStageEconomics?.['codey-plan']?.tokens) },
+    'codey-implement':{ startedAt: '<CODEY_IMPL_START>', completedAt: '<CODEY_IMPL_END>',  durationMs: <CODEY_IMPL_DURATION_MS>,  status: 'success', cost: runtimeStageEconomics?.['codey-implement']?.cost ?? historyStageEconomics?.['codey-implement']?.cost, tokens: normalizeStageTokens(runtimeStageEconomics?.['codey-implement']?.tokens ?? historyStageEconomics?.['codey-implement']?.tokens) },
   },
 });
 sendTelemetry(payload, { url: config.url, key: config.key, queuePath: config.queuePath })

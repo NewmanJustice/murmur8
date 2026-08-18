@@ -149,22 +149,100 @@ function ensureFeatureId(specPath) {
 const OPTIONAL_RUN_FIELDS = [
   'type',          // 'feature' | 'refinement' — defaults to 'feature' server-side
   'parentRunId',   // links a refinement to the run it refines
-  'commitHash',
-  'totalCost',
   'failedStage',   // set when status === 'failed'
   'pausedAfter',   // set when status === 'paused'
   'featureSpec',
   'stories',
 ];
 
+function isFiniteNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function hasOwn(obj, key) {
+  return Boolean(obj) && Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+function pickWithRuntimePrecedence(runtimeObj, historyObj, key) {
+  if (hasOwn(runtimeObj, key)) return runtimeObj[key];
+  if (hasOwn(historyObj, key)) return historyObj[key];
+  return undefined;
+}
+
+function normalizeStageTokens(runtimeTokens, historyTokens) {
+  const inputCandidate = pickWithRuntimePrecedence(runtimeTokens, historyTokens, 'input');
+  const outputCandidate = pickWithRuntimePrecedence(runtimeTokens, historyTokens, 'output');
+  const totalCandidate = pickWithRuntimePrecedence(runtimeTokens, historyTokens, 'total');
+
+  const tokens = {};
+  if (isFiniteNumber(inputCandidate)) tokens.input = inputCandidate;
+  if (isFiniteNumber(outputCandidate)) tokens.output = outputCandidate;
+
+  if (isFiniteNumber(tokens.input) && isFiniteNumber(tokens.output)) {
+    const sum = tokens.input + tokens.output;
+    tokens.total = isFiniteNumber(totalCandidate) && totalCandidate === sum ? totalCandidate : sum;
+  }
+
+  return Object.keys(tokens).length > 0 ? tokens : undefined;
+}
+
+function normalizeStageEconomics(runtimeStage, historyStage) {
+  const stage = { ...runtimeStage };
+
+  const costCandidate = pickWithRuntimePrecedence(runtimeStage, historyStage, 'cost');
+  if (isFiniteNumber(costCandidate)) stage.cost = costCandidate;
+  else delete stage.cost;
+
+  const runtimeTokens = runtimeStage && typeof runtimeStage.tokens === 'object' ? runtimeStage.tokens : undefined;
+  const historyTokens = historyStage && typeof historyStage.tokens === 'object' ? historyStage.tokens : undefined;
+  const tokens = normalizeStageTokens(runtimeTokens, historyTokens);
+
+  if (tokens) stage.tokens = tokens;
+  else delete stage.tokens;
+
+  return stage;
+}
+
+function resolveHistoryStages(runData) {
+  const candidates = [
+    runData && runData.historyStages,
+    runData && runData.historyEntry && runData.historyEntry.run && runData.historyEntry.run.stages,
+    runData && runData.history && runData.history.run && runData.history.run.stages,
+  ];
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === 'object') return candidate;
+  }
+  return undefined;
+}
+
+function normalizeStages(stages, historyStages) {
+  if (!stages || typeof stages !== 'object') return stages;
+
+  const normalized = {};
+  for (const [stageName, runtimeStage] of Object.entries(stages)) {
+    if (!runtimeStage || typeof runtimeStage !== 'object') {
+      normalized[stageName] = runtimeStage;
+      continue;
+    }
+    const historyStage = historyStages && typeof historyStages === 'object'
+      ? historyStages[stageName]
+      : undefined;
+    normalized[stageName] = normalizeStageEconomics(runtimeStage, historyStage);
+  }
+  return normalized;
+}
+
 function buildPayload(runData) {
   const { runId, featureId, slug, status, startedAt, completedAt,
           totalDurationMs, stages, artifacts, feedback,
           gitHubUser = null, repoName = null } = runData;
+  const historyStages = resolveHistoryStages(runData);
 
   const run = { featureId, slug, status, startedAt, completedAt, totalDurationMs,
-                gitHubUser, repoName };
-  if (stages) run.stages = stages;
+               gitHubUser, repoName };
+  run.commitHash = typeof runData.commitHash === 'string' ? runData.commitHash : null;
+  if (isFiniteNumber(runData.totalCost)) run.totalCost = runData.totalCost;
+  if (stages) run.stages = normalizeStages(stages, historyStages);
   if (feedback && typeof feedback === 'object' && Object.keys(feedback).length > 0) {
     run.feedback = feedback;
   }
@@ -452,6 +530,9 @@ module.exports = {
   retryQueue,
   retryQueueAsync,
   parseEnvValue,
+  normalizeStageTokens,
+  normalizeStageEconomics,
+  normalizeStages,
   QUEUE_FILENAME,
   ensureDotenv,
   ensureGitignore,

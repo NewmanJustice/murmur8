@@ -384,6 +384,26 @@ describe('Telemetry queue redelivery', () => {
     assert.match(out, /Failed queue\s*:\s*1 entries/);
     assert.match(out, /validate/);
   });
+
+  it('T-REG-5: failed sends still keep retry accounting unchanged for enriched payloads', async () => {
+    const srv = await startServer({ status: 401, body: '{"error":"Unauthorized"}' });
+    try {
+      fs.writeFileSync(queuePath, JSON.stringify([{
+        runId: 'r1',
+        run: {
+          slug: 'cost-aware-feature',
+          status: 'success',
+          totalCost: 0.42,
+          stages: {
+            alex: { status: 'success', cost: 0.11, tokens: { input: 2, output: 3, total: 5 } },
+          },
+        },
+      }]));
+      const result = await retryQueueAsync(queuePath, (p) => sendTelemetry(p, { url: srv.url, key: 'bad' }));
+      assert.deepEqual(result, { attempted: 1, sent: 0, remaining: 1 });
+      assert.equal(JSON.parse(fs.readFileSync(queuePath, 'utf8')).length, 1);
+    } finally { await srv.close(); }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -485,5 +505,17 @@ describe('Skill telemetry error surfacing', () => {
 
   it('T-SK-5: REFINE_SKILL.md sends stages (required by the endpoint; its absence returned 422)', () => {
     assert.match(sendBlock(refine), /stages\s*:/);
+  });
+
+  it('T-REG-3: telemetry send blocks remain non-blocking for run/refine flows', () => {
+    assert.match(sendBlock(skill), /\|\|\s*true/);
+    assert.match(sendBlock(refine), /\|\|\s*true/);
+  });
+
+  it('T-REG-4: failed-send warning continues to advertise queue/retry signaling', () => {
+    assert.match(sendBlock(skill), /queued for retry/);
+    assert.match(sendBlock(refine), /queued for retry/);
+    assert.match(sendBlock(skill), /queuePath/);
+    assert.match(sendBlock(refine), /queuePath/);
   });
 });
