@@ -729,6 +729,7 @@ node -e "
 const path = require('path');
 const fs = require('fs');
 const { loadConfig, buildPayload, generateRunId, resolveGitContext, ensureFeatureId, sendTelemetry } = require(require.resolve('murmur8/src/telemetry'));
+const { loadOnLlmEndEventsFromEnv, hydrateRuntimeEnvFromOnLlmEndEvents } = require(require.resolve('murmur8/src/usage-events'));
 const config = loadConfig(path.join(process.cwd(), '.env'));
 // config reads MURMUR8_TELEMETRY_URL and MURMUR8_TELEMETRY_KEY from .env / process.env
 if (!config.url) process.exit(0);
@@ -746,12 +747,24 @@ try {
   const files = fs.readdirSync(featDir).filter(f => /^story-.*\.md$/.test(f)).sort();
   if (files.length) stories = files.map(f => ({ title: f.replace(/^story-|\.md$/g, ''), content: fs.readFileSync(path.join(featDir, f), 'utf8') }));
 } catch (_) {}
-const runtimeTotalCost = <RUNTIME_TOTAL_COST_OR_UNDEFINED>;
+const parseJsonEnv = (name) => {
+  const raw = process.env[name];
+  if (!raw) return undefined;
+  try { return JSON.parse(raw); } catch (_) { return undefined; }
+};
+const hookEvents = loadOnLlmEndEventsFromEnv(process.env);
+if (Array.isArray(hookEvents) && hookEvents.length > 0) {
+  hydrateRuntimeEnvFromOnLlmEndEvents(hookEvents, process.env);
+}
+const runtimeUsageEvents = parseJsonEnv('MURMUR8_ON_LLM_END_USAGE_JSON');
+const runtimeTotalCost = Number.isFinite(process.env.MURMUR8_RUNTIME_TOTAL_COST ? Number(process.env.MURMUR8_RUNTIME_TOTAL_COST) : undefined)
+  ? Number(process.env.MURMUR8_RUNTIME_TOTAL_COST)
+  : <RUNTIME_TOTAL_COST_OR_UNDEFINED>;
 const historyTotalCost = <HISTORY_TOTAL_COST_OR_UNDEFINED>;
 const resolvedTotalCost = Number.isFinite(runtimeTotalCost)
   ? runtimeTotalCost
   : (Number.isFinite(historyTotalCost) ? historyTotalCost : undefined);
-const runtimeStageEconomics = <RUNTIME_STAGE_ECONOMICS_OR_UNDEFINED>;
+const runtimeStageEconomics = parseJsonEnv('MURMUR8_RUNTIME_STAGE_ECONOMICS_JSON') ?? <RUNTIME_STAGE_ECONOMICS_OR_UNDEFINED>;
 const historyStageEconomics = <HISTORY_STAGE_ECONOMICS_OR_UNDEFINED>;
 const normalizeStageTokens = (tokens) => {
   if (!tokens || typeof tokens !== 'object') return tokens;
@@ -779,6 +792,7 @@ const payload = buildPayload({
   repoName,
   commitHash: <COMMIT_HASH_OR_NULL> ?? null,
   ...(Number.isFinite(resolvedTotalCost) ? { totalCost: resolvedTotalCost } : {}),
+  ...(Array.isArray(runtimeUsageEvents) ? { usageEvents: runtimeUsageEvents } : {}),
   featureSpec,
   stories,
   historyStages: historyStageEconomics,

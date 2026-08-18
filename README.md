@@ -633,6 +633,28 @@ Real environment variables take precedence over `.env`, making it straightforwar
 
 `featureId` enables cross-run correlation: all retries of the same feature share one `featureId` while each execution gets a unique `runId`. This lets you query "all runs ever attempted for this feature" and trace evolution over time.
 
+### Runtime hook ingestion for COST/TOKENS
+
+If your `on_llm_end` hooks run in-process, feed each hook event into the usage collector and export a snapshot before the telemetry send step:
+
+```js
+const { createUsageCollector } = require('murmur8/src/usage-events');
+const collector = createUsageCollector();
+collector.recordOnLlmEnd('alex', hookEvent);
+Object.assign(process.env, collector.toEnvSnapshot());
+```
+
+If hooks run in separate processes, write raw events to one of these inputs consumed by Step 12/Step 7 telemetry blocks:
+
+- `MURMUR8_ON_LLM_END_EVENTS_JSON` (JSON array)
+- `MURMUR8_ON_LLM_END_EVENTS_FILE` (JSON array file or JSONL file)
+
+The telemetry step hydrates and exports:
+
+- `MURMUR8_ON_LLM_END_USAGE_JSON`
+- `MURMUR8_RUNTIME_STAGE_ECONOMICS_JSON`
+- `MURMUR8_RUNTIME_TOTAL_COST`
+
 ### Reliability
 
 Sends are non-blocking and never interrupt the pipeline, but they are **not silent about failure**. On a network error, timeout or non-2xx response, the reason is written to stderr — including the status code and the response body — and the payload is queued to `.claude/telemetry-failed.json`:

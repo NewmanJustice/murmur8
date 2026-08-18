@@ -203,3 +203,7 @@ Key rules:
 Available skills (invoke via `/skill-name` in Claude Code):
 - `/implement-feature` - Run the full Alex → Cass → Nigel → Codey pipeline
 - `/refine-feature` - Refine an existing feature conversationally (spec diff → story/test updates → Codey)
+
+## Memory
+
+Your memory can be found here: murmur8/murmur8_portal/.claude/memory

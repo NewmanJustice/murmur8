@@ -24,6 +24,10 @@
 
 ---
 
+## TODO 
+
+Make sure pipeline sends telemetry data
+
 ## Backlog
 
 | Status | P | E | Slug | Description |

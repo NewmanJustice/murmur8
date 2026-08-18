@@ -1,6 +1,6 @@
 {
   "name": "murmur8",
-  "version": "4.7.15",
+  "version": "4.7.16",
   "description": "Multi-agent workflow framework for automated feature development",
   "main": "src/index.js",
   "bin": {

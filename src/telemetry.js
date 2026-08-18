@@ -5,6 +5,7 @@ const path = require('path');
 const zlib = require('zlib');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
+const { calculateCost, loadPricingConfig } = require('./cost');
 
 // ---------------------------------------------------------------------------
 // Default location of the failed-send queue, relative to the .env directory.
@@ -215,6 +216,136 @@ function resolveHistoryStages(runData) {
   return undefined;
 }
 
+function resolveUsageEventStage(event) {
+  const direct =
+    event && (event.stage || event.stageName || event.pipelineStage || event.stage_id);
+  if (typeof direct === 'string' && direct.trim()) return direct.trim();
+
+  const nested = event && event.metadata;
+  if (nested && typeof nested === 'object') {
+    const metaStage = nested.stage || nested.stageName || nested.pipelineStage;
+    if (typeof metaStage === 'string' && metaStage.trim()) return metaStage.trim();
+  }
+
+  return null;
+}
+
+function firstFiniteNumber(candidates) {
+  for (const candidate of candidates) {
+    if (typeof candidate === 'number' && Number.isFinite(candidate)) return candidate;
+  }
+  return undefined;
+}
+
+function resolveUsageEventTokens(event) {
+  if (!event || typeof event !== 'object') return null;
+
+  const usage = event.usage && typeof event.usage === 'object' ? event.usage : {};
+  const input = firstFiniteNumber([
+    usage.inputTokens,
+    usage.input_tokens,
+    event.inputTokens,
+    event.input_tokens,
+    event.usage_input_tokens,
+  ]);
+  const output = firstFiniteNumber([
+    usage.outputTokens,
+    usage.output_tokens,
+    event.outputTokens,
+    event.output_tokens,
+    event.usage_output_tokens,
+  ]);
+  const total = firstFiniteNumber([
+    usage.totalTokens,
+    usage.total_tokens,
+    event.totalTokens,
+    event.total_tokens,
+    event.usage_total_tokens,
+  ]);
+
+  return { input, output, total };
+}
+
+function deriveStageEconomicsFromUsageEvents(usageEvents, pricing = loadPricingConfig()) {
+  if (!Array.isArray(usageEvents) || usageEvents.length === 0) return undefined;
+
+  const byStage = {};
+
+  for (const event of usageEvents) {
+    const stageName = resolveUsageEventStage(event);
+    if (!stageName) continue;
+
+    const tokens = resolveUsageEventTokens(event);
+    const hasInput = isFiniteNumber(tokens.input);
+    const hasOutput = isFiniteNumber(tokens.output);
+    if (!hasInput && !hasOutput) continue;
+
+    if (!byStage[stageName]) {
+      byStage[stageName] = { input: 0, output: 0, cost: 0 };
+    }
+
+    const input = hasInput ? tokens.input : 0;
+    const output = hasOutput ? tokens.output : 0;
+    byStage[stageName].input += input;
+    byStage[stageName].output += output;
+
+    const explicitCost = firstFiniteNumber([
+      event.cost,
+      event.estimatedCost,
+      event.total_nano_aiu,
+      event.totalNanoAiu,
+    ]);
+    if (isFiniteNumber(explicitCost)) {
+      byStage[stageName].cost += explicitCost;
+    } else {
+      byStage[stageName].cost += calculateCost(input, output, pricing);
+    }
+  }
+
+  const result = {};
+  for (const [stage, aggregate] of Object.entries(byStage)) {
+    const tokens = {
+      input: aggregate.input,
+      output: aggregate.output,
+      total: aggregate.input + aggregate.output,
+    };
+    result[stage] = {
+      cost: Math.round(aggregate.cost * 1000) / 1000,
+      tokens,
+    };
+  }
+
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function applyUsageEventEconomics(stages, usageStageEconomics) {
+  if (!stages || typeof stages !== 'object') return stages;
+  if (!usageStageEconomics || typeof usageStageEconomics !== 'object') return stages;
+
+  const hydrated = {};
+  for (const [stageName, stageData] of Object.entries(stages)) {
+    if (!stageData || typeof stageData !== 'object') {
+      hydrated[stageName] = stageData;
+      continue;
+    }
+
+    const usage = usageStageEconomics[stageName];
+    if (!usage || typeof usage !== 'object') {
+      hydrated[stageName] = { ...stageData };
+      continue;
+    }
+
+    const next = { ...stageData };
+    if (!hasOwn(next, 'cost') && isFiniteNumber(usage.cost)) next.cost = usage.cost;
+    if (!hasOwn(next, 'tokens') && usage.tokens && typeof usage.tokens === 'object') {
+      next.tokens = usage.tokens;
+    }
+    hydrated[stageName] = next;
+  }
+
+  return hydrated;
+}
+
 function normalizeStages(stages, historyStages) {
   if (!stages || typeof stages !== 'object') return stages;
 
@@ -237,12 +368,19 @@ function buildPayload(runData) {
           totalDurationMs, stages, artifacts, feedback,
           gitHubUser = null, repoName = null } = runData;
   const historyStages = resolveHistoryStages(runData);
+  const usageEvents = Array.isArray(runData.usageEvents)
+    ? runData.usageEvents
+    : (Array.isArray(runData.onLlmEndEvents) ? runData.onLlmEndEvents : undefined);
+  const usageStageEconomics = deriveStageEconomicsFromUsageEvents(usageEvents, runData.pricing);
 
   const run = { featureId, slug, status, startedAt, completedAt, totalDurationMs,
                gitHubUser, repoName };
   run.commitHash = typeof runData.commitHash === 'string' ? runData.commitHash : null;
   if (isFiniteNumber(runData.totalCost)) run.totalCost = runData.totalCost;
-  if (stages) run.stages = normalizeStages(stages, historyStages);
+  if (stages) {
+    const withUsage = applyUsageEventEconomics(stages, usageStageEconomics);
+    run.stages = normalizeStages(withUsage, historyStages);
+  }
   if (feedback && typeof feedback === 'object' && Object.keys(feedback).length > 0) {
     run.feedback = feedback;
   }
@@ -533,6 +671,8 @@ module.exports = {
   normalizeStageTokens,
   normalizeStageEconomics,
   normalizeStages,
+  deriveStageEconomicsFromUsageEvents,
+  applyUsageEventEconomics,
   QUEUE_FILENAME,
   ensureDotenv,
   ensureGitignore,

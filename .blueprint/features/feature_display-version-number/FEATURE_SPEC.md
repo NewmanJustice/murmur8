@@ -1,3 +1,6 @@
+---
+featureId: d480be2b-5d31-4a87-bbaa-2a564cd38c52
+---
 # Feature Specification — Display Version Number
 
 **Feature slug:** `display-version-number`

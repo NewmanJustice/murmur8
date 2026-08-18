@@ -106,6 +106,12 @@ const {
   markWorktreeAborted,
   getPromptText
 } = require('./diff-preview');
+const {
+  createUsageCollector,
+  normalizeStageName,
+  loadOnLlmEndEventsFromEnv,
+  hydrateRuntimeEnvFromOnLlmEndEvents,
+} = require('./usage-events');
 const { loadConfig, generateRunId, resolveGitContext, ensureFeatureId, buildPayload, compressArtifact,
         sendTelemetry, enqueueFailure, retryQueue, retryQueueAsync, ensureDotenv, ensureGitignore,
         formatTelemetryConfig
@@ -189,6 +195,10 @@ module.exports = {
   ensureDotenv,
   ensureGitignore,
   formatTelemetryConfig,
+  createUsageCollector,
+  normalizeStageName,
+  loadOnLlmEndEventsFromEnv,
+  hydrateRuntimeEnvFromOnLlmEndEvents,
   // Tools module (model native features)
   tools,
   // Theme module (murmuration visual theming)

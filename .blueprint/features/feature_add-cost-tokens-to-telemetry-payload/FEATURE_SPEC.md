@@ -1,3 +1,6 @@
+---
+featureId: 83e762d8-74ab-4d93-8625-fbb611ffe3a8
+---
 # Feature Specification — Add Cost/Tokens to Telemetry Payload
 
 ## 1. Feature Intent

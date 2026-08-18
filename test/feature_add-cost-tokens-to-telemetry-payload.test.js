@@ -5,7 +5,10 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
-const { buildPayload } = require('../src/telemetry');
+const {
+  buildPayload,
+  deriveStageEconomicsFromUsageEvents,
+} = require('../src/telemetry');
 
 const ROOT = path.join(__dirname, '..');
 
@@ -186,6 +189,45 @@ describe('Run payload behavior (commitHash, totalCost)', () => {
     assert.deepEqual(stages.historyFallback.tokens, { input: 5, output: 8, total: 13 });
     assert.equal(Object.hasOwn(stages.omitAllInvalid, 'tokens'), false);
   });
+
+  it('T-HOOK-1: on_llm_end usage events derive per-stage token economics', () => {
+    const events = [
+      { stage: 'alex', usage: { input_tokens: 100, output_tokens: 50 } },
+      { stage: 'alex', usage: { input_tokens: 20, output_tokens: 30 } },
+      { stageName: 'cass', usage_input_tokens: 10, usage_output_tokens: 5 },
+      { stage: 'cass', usage: { input_tokens: 2 } }, // partial still contributes
+      { stage: 'nigel-tests', usage: { total_tokens: 200 } }, // ignored (no in/out)
+    ];
+
+    const economics = deriveStageEconomicsFromUsageEvents(events, {
+      inputPricePerMillion: 3,
+      outputPricePerMillion: 15,
+    });
+
+    assert.deepEqual(economics.alex.tokens, { input: 120, output: 80, total: 200 });
+    assert.deepEqual(economics.cass.tokens, { input: 12, output: 5, total: 17 });
+    assert.equal(Object.hasOwn(economics, 'nigel-tests'), false);
+    assert.ok(typeof economics.alex.cost === 'number');
+  });
+
+  it('T-HOOK-2: buildPayload hydrates stage tokens/cost from usageEvents when stage lacks economics', () => {
+    const payload = buildPayload(baseRunData({
+      stages: {
+        alex: {
+          startedAt: '2026-08-18T00:00:00.000Z',
+          completedAt: '2026-08-18T00:00:10.000Z',
+          durationMs: 10000,
+          status: 'success',
+        },
+      },
+      usageEvents: [
+        { stage: 'alex', usage: { input_tokens: 7, output_tokens: 11 } },
+      ],
+    }));
+
+    assert.deepEqual(payload.run.stages.alex.tokens, { input: 7, output: 11, total: 18 });
+    assert.ok(typeof payload.run.stages.alex.cost === 'number');
+  });
 });
 
 describe('Template coverage for implement/refine telemetry assembly', () => {
@@ -254,6 +296,15 @@ describe('Template coverage for implement/refine telemetry assembly', () => {
         /input|output/,
         `${filePath} must reference input/output presence for total omission rules`
       );
+    }
+  });
+
+  it('T-HOOK-3: templates hydrate runtime env economics from raw on_llm_end events before payload build', () => {
+    for (const filePath of [...implementPaths, refinePath]) {
+      const block = telemetryCodeBlock(filePath);
+      assert.match(block, /loadOnLlmEndEventsFromEnv/, `${filePath} must load raw on_llm_end events`);
+      assert.match(block, /hydrateRuntimeEnvFromOnLlmEndEvents/, `${filePath} must hydrate runtime usage env vars`);
+      assert.match(block, /MURMUR8_ON_LLM_END_USAGE_JSON/, `${filePath} must use derived usage env payload`);
     }
   });
 });

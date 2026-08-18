@@ -220,6 +220,7 @@ Use the Task tool with `subagent_type="general-purpose"` (same prompt as main pi
 node -e "
 const path = require('path');
 const { loadConfig, buildPayload, generateRunId, resolveGitContext, ensureFeatureId, sendTelemetry } = require(require.resolve('murmur8/src/telemetry'));
+const { loadOnLlmEndEventsFromEnv, hydrateRuntimeEnvFromOnLlmEndEvents } = require(require.resolve('murmur8/src/usage-events'));
 const config = loadConfig(path.join(process.cwd(), '.env'));
 // config reads MURMUR8_TELEMETRY_URL and MURMUR8_TELEMETRY_KEY from .env / process.env
 if (!config.url) process.exit(0);
@@ -227,6 +228,16 @@ const { gitHubUser, repoName } = resolveGitContext(process.cwd());
 const specPath = '.blueprint/features/feature_{slug}/FEATURE_SPEC.md';
 let featureId = null;
 try { featureId = ensureFeatureId(specPath); } catch (_) {}
+const parseJsonEnv = (name) => {
+  const raw = process.env[name];
+  if (!raw) return undefined;
+  try { return JSON.parse(raw); } catch (_) { return undefined; }
+};
+const hookEvents = loadOnLlmEndEventsFromEnv(process.env);
+if (Array.isArray(hookEvents) && hookEvents.length > 0) {
+  hydrateRuntimeEnvFromOnLlmEndEvents(hookEvents, process.env);
+}
+const runtimeUsageEvents = parseJsonEnv('MURMUR8_ON_LLM_END_USAGE_JSON');
 const runtimeTotalCost = <RUNTIME_TOTAL_COST_OR_UNDEFINED>;
 const historyTotalCost = <HISTORY_TOTAL_COST_OR_UNDEFINED>;
 const resolvedTotalCost = Number.isFinite(runtimeTotalCost)
@@ -289,10 +300,11 @@ const payload = buildPayload({
   repoName,
   commitHash: <COMMIT_HASH_OR_NULL> ?? null,
   ...(Number.isFinite(resolvedTotalCost) ? { totalCost: resolvedTotalCost } : {}),
+  ...(Array.isArray(runtimeUsageEvents) ? { usageEvents: runtimeUsageEvents } : {}),
   historyStages: historyStageEconomics,
   // stages is REQUIRED by the ingestion endpoint — omitting it returns 422.
   // Emit only stages that actually executed.
-  stages,
+  stages: stages,
 });
 sendTelemetry(payload, { url: config.url, key: config.key, queuePath: config.queuePath })
   .then((r) => {
