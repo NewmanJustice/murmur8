@@ -484,6 +484,11 @@ All agents follow strict guardrails enforced via inlined rules in each self-cont
 | **Assumption Labeling** | All assumptions must be explicitly labeled |
 | **Confidentiality** | Business context treated as confidential |
 | **Escalation Protocol** | Clear rules for when to ask vs assume — flag ambiguity, don't guess |
+| **`on_LLM_start` PII Triage** | Pre-send outbound context checks classify personal-data risk with `ALLOW` / `REVIEW` / `BLOCK` decisions and reason codes |
+| **`on_LLM_start` Prompt-Injection Triage** | Treat retrieved/external content as untrusted; block high-confidence exfiltration/disable-control directives; ambiguous cases are reviewable |
+| **No Sensitive Value Leakage** | Never include raw detected values in logs, errors, telemetry evidence, or queue files |
+| **`on_LLM_END` Token Usage Capture** | Post-call usage metadata capture (input/output/total tokens, duration, stage correlation) for telemetry |
+| **Telemetry Safety** | Usage capture must not include prompt/response body content; missing usage fields degrade gracefully; telemetry failures do not fail pipeline runs |
 
 ## Self-Improvement Loop
 
