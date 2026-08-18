@@ -436,6 +436,225 @@ describe('Escalation Protocol Guardrails', () => {
   });
 });
 
+// Story: Pre-LLM PII Screening (story-pre-llm-pii-screening.md)
+describe('Pre-LLM PII Screening Guardrails', () => {
+
+  it('T-PII-1.1: Agent guardrails define on_LLM_start PII screening', () => {
+    const piiStartPhrases = [
+      'on_llm_start',
+      'personal data risk',
+      'pii',
+      'outbound context'
+    ];
+
+    AGENT_FILES.forEach(file => {
+      const content = readAgentSpec(file);
+      assert.ok(
+        containsAny(content, piiStartPhrases),
+        `${file} should define pre-send PII screening at on_LLM_start`
+      );
+    });
+  });
+
+  it('T-PII-2.1: Agent guardrails define ALLOW/REVIEW/BLOCK outcomes', () => {
+    const decisionPhrases = [
+      'allow',
+      'review',
+      'block',
+      'reason code'
+    ];
+
+    AGENT_FILES.forEach(file => {
+      const content = readAgentSpec(file);
+      assert.ok(
+        containsAny(content, decisionPhrases),
+        `${file} should define ALLOW/REVIEW/BLOCK decision outcomes`
+      );
+    });
+  });
+
+  it('T-PII-3.1: Agent guardrails prohibit raw sensitive value leakage', () => {
+    const noRawPhrases = [
+      'never include raw detected values',
+      'raw matched values',
+      'logs, errors, or telemetry evidence',
+      'queue files'
+    ];
+
+    AGENT_FILES.forEach(file => {
+      const content = readAgentSpec(file);
+      assert.ok(
+        containsAny(content, noRawPhrases),
+        `${file} should prohibit raw sensitive value leakage`
+      );
+    });
+  });
+
+  it('T-PII-4.1: Agent guardrails require deterministic decisions', () => {
+    const deterministicPhrases = [
+      'deterministic',
+      'identical inputs',
+      'consistent outputs',
+      'same inputs'
+    ];
+
+    AGENT_FILES.forEach(file => {
+      const content = readAgentSpec(file);
+      assert.ok(
+        containsAny(content, deterministicPhrases),
+        `${file} should require deterministic pre-send decisions`
+      );
+    });
+  });
+});
+
+// Story: Prompt-Injection Triage (story-prompt-injection-triage.md)
+describe('Prompt-Injection Triage Guardrails', () => {
+
+  it('T-PIT-1.1: Agent guardrails block high-confidence untrusted exfiltration directives', () => {
+    const blockDirectivePhrases = [
+      'prompt-injection',
+      'prompt injection',
+      'exfiltrate',
+      'disable controls',
+      'unauthorised side effects'
+    ];
+
+    AGENT_FILES.forEach(file => {
+      const content = readAgentSpec(file);
+      assert.ok(
+        containsAny(content, blockDirectivePhrases),
+        `${file} should define blocking for high-confidence untrusted directives`
+      );
+    });
+  });
+
+  it('T-PIT-2.1: Agent guardrails route ambiguous instruction-like content to REVIEW', () => {
+    const reviewPhrases = [
+      'review',
+      'ambiguous',
+      'suspicious',
+      'reason code',
+      'redacted evidence'
+    ];
+
+    AGENT_FILES.forEach(file => {
+      const content = readAgentSpec(file);
+      assert.ok(
+        containsAny(content, reviewPhrases),
+        `${file} should route ambiguous instruction-like content to REVIEW`
+      );
+    });
+  });
+
+  it('T-PIT-3.1: Agent guardrails preserve defensive quoted-analysis use cases', () => {
+    const defensiveQuotedPhrases = [
+      'detection is a risk signal',
+      'not proof of intent',
+      'defensive',
+      'quoted examples'
+    ];
+
+    AGENT_FILES.forEach(file => {
+      const content = readAgentSpec(file);
+      assert.ok(
+        containsAny(content, defensiveQuotedPhrases),
+        `${file} should preserve defensive quoted-analysis use cases`
+      );
+    });
+  });
+
+  it('T-PIT-4.1: Agent guardrails preserve trust hierarchy and independent action controls', () => {
+    const trustControlPhrases = [
+      'retrieved/external content as untrusted',
+      'untrusted',
+      'tool/action permissions',
+      'evaluated independently downstream'
+    ];
+
+    AGENT_FILES.forEach(file => {
+      const content = readAgentSpec(file);
+      assert.ok(
+        containsAny(content, trustControlPhrases),
+        `${file} should preserve trust hierarchy and independent action controls`
+      );
+    });
+  });
+});
+
+// Story: Post-LLM Token Telemetry (story-llm-end-token-telemetry.md)
+describe('Post-LLM Token Telemetry Guardrails', () => {
+
+  it('T-TEL-1.1: Agent guardrails define on_LLM_END usage capture', () => {
+    const usageCapturePhrases = [
+      'on_llm_end',
+      'usage metadata',
+      'input tokens',
+      'output tokens',
+      'total tokens',
+      'duration'
+    ];
+
+    AGENT_FILES.forEach(file => {
+      const content = readAgentSpec(file);
+      assert.ok(
+        containsAny(content, usageCapturePhrases),
+        `${file} should define usage capture at on_LLM_END`
+      );
+    });
+  });
+
+  it('T-TEL-2.1: Agent guardrails include telemetry payload assembly expectations', () => {
+    const payloadPhrases = [
+      'telemetry payload',
+      'run metadata',
+      'stage correlation',
+      'usage fields'
+    ];
+
+    AGENT_FILES.forEach(file => {
+      const content = readAgentSpec(file);
+      assert.ok(
+        containsAny(content, payloadPhrases),
+        `${file} should include telemetry payload assembly expectations`
+      );
+    });
+  });
+
+  it('T-TEL-3.1: Agent guardrails prohibit prompt/response content in usage capture', () => {
+    const noLeakagePhrases = [
+      'must not include prompt/response body content',
+      'no content leakage',
+      'without exposing raw prompt or response content'
+    ];
+
+    AGENT_FILES.forEach(file => {
+      const content = readAgentSpec(file);
+      assert.ok(
+        containsAny(content, noLeakagePhrases),
+        `${file} should prohibit prompt/response content leakage in usage capture`
+      );
+    });
+  });
+
+  it('T-TEL-4.1: Agent guardrails require graceful partial metadata handling and non-blocking telemetry errors', () => {
+    const resiliencePhrases = [
+      'missing usage fields degrade gracefully',
+      'partial metrics',
+      'without throwing',
+      'telemetry capture errors do not fail the pipeline run'
+    ];
+
+    AGENT_FILES.forEach(file => {
+      const content = readAgentSpec(file);
+      assert.ok(
+        containsAny(content, resiliencePhrases),
+        `${file} should require safe partial metadata handling and non-blocking telemetry failures`
+      );
+    });
+  });
+});
+
 // Additional test: Guardrails section exists in all agent specs
 describe('Guardrails Section Presence', () => {
 

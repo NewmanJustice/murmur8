@@ -1,8 +1,14 @@
-# Implementation Plan — Agent Guardrails
+# Implementation Plan — Agent Guardrails (Runtime Hook Refinement)
 
 ## Summary
 
-Add a standardised "Guardrails" section to all four agent specification files (AGENT_SPECIFICATION_ALEX.md, AGENT_BA_CASS.md, AGENT_TESTER_NIGEL.md, AGENT_DEVELOPER_CODEY.md). The section covers source restrictions, citation requirements, confidentiality constraints, and escalation protocols. This is a documentation-only change with no runtime code modifications.
+Expand guardrails from documentation-only policy into runtime lifecycle behaviour:
+
+1. `on_LLM_start`: pre-send PII classification and prompt-injection triage
+2. `on_LLM_END`: post-send usage capture for telemetry
+3. Keep existing source/citation/confidentiality/escalation guardrails intact
+
+This plan assumes in-process, dependency-free implementation and tests under `node --test`.
 
 ---
 
@@ -10,81 +16,55 @@ Add a standardised "Guardrails" section to all four agent specification files (A
 
 | Path | Action | Purpose |
 |------|--------|---------|
-| `.blueprint/agents/AGENT_SPECIFICATION_ALEX.md` | Modify | Add Guardrails section |
-| `.blueprint/agents/AGENT_BA_CASS.md` | Modify | Add Guardrails section |
-| `.blueprint/agents/AGENT_TESTER_NIGEL.md` | Modify | Add Guardrails section |
-| `.blueprint/agents/AGENT_DEVELOPER_CODEY.md` | Modify | Add Guardrails section |
+| `src/guardrails.js` (or equivalent module) | Create/Modify | Central decision logic for pre-LLM PII and prompt-injection checks |
+| `src/telemetry.js` | Modify | Accept and persist usage metadata from post-LLM hook without storing prompt/response content |
+| Runtime integration points around model invocation | Modify | Wire `on_LLM_start` and `on_LLM_END` checks into existing call flow |
+| `.blueprint/agents/AGENT_*.md` | Modify | Keep behavioural guardrail instructions aligned with runtime decisions |
+| `test/feature_agent-guardrails*.test.js` | Create/Modify | Add deterministic tests for start-hook decisions and end-hook telemetry capture |
 
 ---
 
 ## Implementation Steps
 
-1. **Read each agent spec file** to identify the best insertion point for the Guardrails section (after existing content, before any skills section if present).
+1. **Identify hook surfaces** where model calls start/end in the current pipeline integration.
 
-2. **Add Guardrails section to AGENT_SPECIFICATION_ALEX.md** using the template below.
+2. **Implement `on_LLM_start` guard entrypoint** with shared decision object:
+   - `decision`: `ALLOW` | `BLOCK` | `REVIEW`
+   - `reasonCode`
+   - `message`
+   - `policyVersion`
+   - `evidence` (redacted only)
 
-3. **Add Guardrails section to AGENT_BA_CASS.md** using the template below.
+3. **Add PII classification policy**:
+   - ordinary identifiers → `ALLOW` when task-necessary and minimised
+   - ambiguous sensitive/bulk personal data → `REVIEW`
+   - clear unauthorised sensitive disclosure → `BLOCK`
 
-4. **Add Guardrails section to AGENT_TESTER_NIGEL.md** using the template below.
+4. **Add prompt-injection triage policy**:
+   - treat external/retrieved content as untrusted by default
+   - high-confidence exfiltration/override/disable-control directives → `BLOCK`
+   - contextual/quoted defensive examples → `REVIEW` (not automatic `BLOCK`)
 
-5. **Add Guardrails section to AGENT_DEVELOPER_CODEY.md** using the template below.
+5. **Implement `on_LLM_END` usage capture**:
+   - collect model name, input/output tokens, total tokens, duration, stage correlation
+   - do not persist raw prompt/response text as part of this capture path
 
-6. **Run tests** (`node --test test/feature_agent-guardrails.test.js`) to verify all 21 test assertions pass.
+6. **Wire usage into telemetry payload assembly** with graceful degradation:
+   - partial usage metadata is allowed
+   - telemetry capture/transport failures do not fail the pipeline run
 
-7. **Review outputs** to ensure no test failures remain.
+7. **Update agent-spec guardrail language** so behavioural instructions and runtime checks stay consistent.
 
----
-
-## Guardrails Section Template
-
-```markdown
-## Guardrails
-
-### Allowed Sources
-You may use ONLY information from these sources:
-- System specification (`.blueprint/system_specification/SYSTEM_SPEC.md`)
-- Feature specifications (`.blueprint/features/*/FEATURE_SPEC.md`)
-- User stories (`story-*.md`) and test artifacts (`test-spec.md`, `*.test.js`)
-- Implementation code in the project
-- Business context (`.business_context/*`)
-- Templates (`.blueprint/templates/*`) and agent specifications
-
-### Prohibited Sources
-Do not use:
-- Social media, forums, blog posts, or external APIs
-- Training data for domain facts—do not invent business rules
-- External project or company references by name
-
-### Citation Requirements
-- Cite sources using: "Per [filename]: [claim]" or "[filename:section] states..."
-- Use section-level citations where feasible (e.g., "story-login.md:AC-3")
-- Reference `.business_context/` files for domain definitions
-- Maintain a traceable chain: downstream artifacts cite upstream sources
-
-### Assumptions vs Facts
-- Label assumptions explicitly: "ASSUMPTION: [statement]" or "NOTE: Assuming..."
-- Distinguish clearly between cited facts and assumptions
-- Do not guess—state "This information is not available in the provided inputs"
-
-### Confidentiality
-- Do not reproduce `.business_context/` content verbatim; summarise or use generic descriptions
-- Do not reference external entities, companies, or projects by name
-- Do not use external services that would expose project data
-- Outputs must be self-contained and understandable without access to confidential sources
-
-### Escalation Protocol
-Escalate to the user when:
-- Critical information is missing and cannot be safely assumed
-- Inputs are ambiguous with multiple possible interpretations—list options and ask for clarification
-- Source documents conflict—cite both sources and request resolution
-- Output would require violating confidentiality constraints
-
-When escalation is not warranted, you may proceed with an explicit assumption labelled as such.
-```
+8. **Add targeted tests** for deterministic start-hook and end-hook outcomes:
+   - PII category cases (ordinary/sensitive/bulk)
+   - prompt-injection cases (malicious vs quoted defensive text)
+   - "never leak matched value" assertions
+   - token usage capture with complete and partial metadata
 
 ---
 
 ## Risks/Questions
 
-- **Insertion point consistency**: Each agent file has slightly different structure; insert before "Skills available" section if present, otherwise at end.
-- **Test phrase matching**: Tests use case-insensitive substring matching; template wording must include trigger phrases from test file.
+- **Hook mapping risk**: Exact hook names differ by framework integration; adapter layer may be required.
+- **False positive tuning**: Prompt-injection and PII heuristics need careful thresholds to avoid over-blocking normal work.
+- **Telemetry schema drift**: Existing run schema may require extension for per-call usage while preserving backward compatibility.
